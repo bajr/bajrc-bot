@@ -5,7 +5,7 @@ int main(int argc, char **argv)
 {
    irc_t irc;
 
-   if ( irc_connect(&irc, "irc.freenode.org", "6667") < 0 )
+   if ( irc_connect(&irc, "irc.cat.pdx.edu", "6667") < 0 )
    {
       fprintf(stderr, "Connection failed.\n");
       goto exit_err;
@@ -13,13 +13,13 @@ int main(int argc, char **argv)
 
    irc_set_output(&irc, "/dev/stdout");
 
-   if ( irc_login(&irc, "maister_") < 0 )
+   if ( irc_login(&irc, "bajrbot") < 0 )
    {
       fprintf(stderr, "Couldn't log in.\n");
       goto exit_err;
    }
 
-   if ( irc_join_channel(&irc, "#umgz") < 0 )
+   if ( irc_join_channel(&irc, "#tabletop") < 0 )
    {
       fprintf(stderr, "Couldn't join channel.\n");
       goto exit_err;

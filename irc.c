@@ -17,7 +17,7 @@ int irc_connect(irc_t *irc, const char* server, const char* port)
 
 int irc_login(irc_t *irc, const char* nick)
 {
-   return irc_reg(irc->s, nick, "arch", "HANSUDESU");
+   return irc_reg(irc->s, nick, "bajr", "bajrbajr");
 }
 
 int irc_join_channel(irc_t *irc, const char* channel)
@@ -186,37 +186,9 @@ int irc_reply_message(irc_t *irc, char *irc_nick, char *msg)
       if ( irc_msg(irc->s, irc->channel, "pong") < 0)
          return -1;
    }
-   else if ( strcmp(command, "war") == 0 )
+   else if ( strcmp(command, "bajr") == 0 )
    {
-      if ( irc_msg(irc->s, irc->channel, "WMs again? gtfo.") < 0 )
-         return -1;
-   }
-   else if ( strcmp(command, "smack") == 0 )
-   {
-      char mesg[512];
-      srand(time(NULL));
-      int critical;
-      critical = (rand()%10)/8;
-      
-      if ( arg != NULL && strlen(arg) > 0 )
-      {
-         if ( critical )
-            snprintf(mesg, 511, "I smack thee, %s, for %d damage (it's super effective).", arg, rand()%20 + 21);
-         else
-            snprintf(mesg, 511, "I smack thee, %s, for %d damage.", arg, rand()%20 + 1);
-         mesg[511] = '\0';
-      }
-      else
-      {
-         snprintf(mesg, 511, "Behold, I smack thee, %s, for %d damage.", irc_nick, rand()%20 + 1);
-         mesg[511] = '\0';
-      }
-      if ( irc_msg(irc->s, irc->channel, mesg) < 0 )
-         return -1;
-   }
-   else if ( strcmp(command, "pacman") == 0 )
-   {
-      if ( irc_msg(irc->s, irc->channel, "Wocka, wocka, bitches!") < 0 )
+      if ( irc_msg(irc->s, irc->channel, "bajrbajrbajr") < 0 )
          return -1;
    }
    else if ( strcmp(command, "google") == 0 )
@@ -259,9 +231,6 @@ int irc_reply_message(irc_t *irc, char *irc_nick, char *msg)
 
          strncpy(&link[strlen(link)], "%20", 254 - strlen(link));
       }
-
-
-
       snprintf(mesg, 511, "%s: http://lmgtfy.com/?q=%s", t_nick, link);
       mesg[511] = '\0';
       if ( irc_msg(irc->s, irc->channel, mesg) < 0 )

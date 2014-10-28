@@ -7,9 +7,9 @@ typedef struct
 {
    int s;
    FILE *file;
-   char channel[256];
+   char channel[256]; // Why 256? Check RFC
    char *nick;
-   char servbuf[512];
+   char servbuf[512]; // Why 512? Check RFC
    int bufptr;
 } irc_t; 
 

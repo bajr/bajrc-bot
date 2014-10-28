@@ -1,22 +1,14 @@
+CC=gcc
+CFLAGS=-c -Wall
+SOURCE=main.c irc.c socket.c
+OBJECTS=$(SOURCE:.c=.o)
+EXEC=bajrcbot
 
-CC = gcc
+all: $(SOURCE) $(EXEC)
 
-TARGET = ircbot
+$(EXEC): $(OBJECTS)
+	$(CC) $(OBJECTS) -o $@
 
-OBJECTS = main.o irc.o socket.o
+.c.o:
+	$(CC) $(CFLAGS) $< -o $@
 
-all: $(TARGET)
-
-%.o: %.c
-	$(CC) -g -c -o $@ $<
-
-clean: clean-obj clean-bin
-
-clean-obj:
-	rm -rf *.o
-	
-clean-bin:
-	rm -rf $(TARGET)
-	
-$(TARGET): $(OBJECTS)
-	$(CC) -g -o $(TARGET) $(OBJECTS)

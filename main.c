@@ -1,3 +1,13 @@
+/* Bradley Rasmussen
+ *
+ * forked from maister for educational purposes
+ * 
+ * TO DO:
+ * Learn backend magic
+ * See what it would take to make the bot modular. Multiple servers & channels
+ * Add functionality
+ */
+
 #include "socket.h"
 #include "irc.h"
 

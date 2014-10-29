@@ -1,6 +1,4 @@
-# This config file allows arbitrary connections to both IRC servers, and their channels
-
-irc.cat.pdx.edu 6667
+irc.cat.pdx.edu:6667
 {
   #tabletop
   #robots catsonly

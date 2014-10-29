@@ -81,9 +81,7 @@ static int irc_leave_channel(irc_t *irc, const char* channel) {
 }
 
 static int irc_parse_action(irc_t *irc) {
-  //char irc_nick[NICK_LEN];
-  //char irc_msg[MSG_LEN];
-
+  //fprintf(stdout, "%s\n", irc->servbuf); // For debugging
   if ( strncmp(irc->servbuf, "PING :", 6) == 0 ) {
     return irc_pong(irc->s, &irc->servbuf[6]);
   } else if ( strncmp(irc->servbuf, "NOTICE AUTH :", 13) == 0 ) {

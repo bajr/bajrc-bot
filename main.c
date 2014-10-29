@@ -11,7 +11,7 @@
 
 #define OUTPUT "/dev/stdout"
 #define CONFIG "config"
-
+#define BOTNAME "bajrbot"
 #include "socket.h"
 #include "irc.h"
 #include <string.h>
@@ -82,7 +82,7 @@ void init_conf (irc_t * irc, FILE * conf) {
     }
   } while (line != NULL);
 
-  if ( irc_login(irc, "bajrbot") < 0 ) {
+  if ( irc_login(irc, BOTNAME) < 0 ) {
     fprintf(stderr, "Couldn't log in.\n");
   }
 

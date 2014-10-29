@@ -41,16 +41,17 @@ error:
 }
 
 int sck_send(int s, const char* data, size_t size) {
-   size_t written = 0;
-   int rc;
-
-   while ( written < size ) {
-      rc = send(s, data + written, size - written, 0);
-      if ( rc <= 0 )
-         return -1;
-      written += rc;
-   }
-   return written;
+  size_t written = 0;
+  int rc;
+  
+  fprintf(stdout, "%s\n", data);
+  while ( written < size ) {
+    rc = send(s, data + written, size - written, 0);
+    if ( rc <= 0 )
+      return -1;
+    written += rc;
+  }
+  return written;
 }
 
 int sck_sendf(int s, const char *fmt, ...) {

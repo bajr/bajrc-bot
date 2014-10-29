@@ -28,17 +28,12 @@ int main(int argc, char **argv) {
   irc.chanlist = NULL;
 
   init_conf(&irc, conf);
-//  if ( irc_connect(&irc, servname, servport) < 0 ) {
-//    fprintf(stderr, "Connection failed.\n");
-//    goto exit_err;
-//  }
-//  else {
-    while ( irc_handle_data(&irc) >= 0 );
+  while ( irc_handle_data(&irc) >= 0 );
 
-    irc_close(&irc);
-    fclose(conf);
-    return 0;
-//  }
+  irc_close(&irc);
+  fclose(conf);
+  return 0;
+
 exit_err:
   if ( irc.s >= 0) {
     irc_close(&irc);

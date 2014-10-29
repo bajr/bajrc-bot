@@ -39,7 +39,7 @@ int irc_handle_data(irc_t *irc) {
    int rc, i;
 
    if ( (rc = sck_recv(irc->s, tempbuffer, sizeof(tempbuffer) - 2 ) ) <= 0 ) {
-      fprintf(stderr, ":v\n");
+      fprintf(stderr, "Still trying to figure out this error\n");
       return -1;
    }
    tempbuffer[rc] = '\0';
@@ -81,7 +81,6 @@ static int irc_leave_channel(irc_t *irc, const char* channel) {
 }
 
 static int irc_parse_action(irc_t *irc) {
-  //fprintf(stdout, "%s\n", irc->servbuf); // For debugging
   if ( strncmp(irc->servbuf, "PING :", 6) == 0 ) {
     return irc_pong(irc->s, &irc->servbuf[6]);
   } else if ( strncmp(irc->servbuf, "NOTICE AUTH :", 13) == 0 ) {
@@ -92,41 +91,43 @@ static int irc_parse_action(irc_t *irc) {
     return 0;
   } else {
   // Parses IRC message that pulls out nick and message. 
+  // Sample: :bajr!bajr@reaver.cat.pdx.edu PRIVMSG #bajrden :test
     char *ptr;
     int privmsg = 0;
     char irc_nick[NICK_LEN];
     char irc_msg[MSG_LEN];
     char irc_chan[CHAN_LEN];
-    *irc_nick = '\0';
-    *irc_msg = '\0';
+    fprintf(stdout, "%s\n", irc->servbuf); // For debugging
 
     // Check for non-message string
     if ( strchr(irc->servbuf, 1) != NULL )
       return 0;
 
     if ( irc->servbuf[0] == ':' ) {
-      ptr = strtok(irc->servbuf, "!");
+      ptr = strtok(irc->servbuf, " !");
       if ( ptr == NULL ) {
-        printf("ptr == NULL\n");
+        fprintf(stderr, "ptr == NULL\n");
         return 0;
       } else {
-        strncpy(irc_nick, &ptr[1], 127);
-        irc_nick[127] = '\0';
+        strncpy(irc_nick, &ptr[1], NICK_LEN-2);
+        irc_nick[NICK_LEN-1] = '\0';
       }
 
       while ( (ptr = strtok(NULL, " ")) != NULL ) {
-        if ( strcmp(ptr, "PRIVMSG") == 0 ) {
+        if ( strncmp(ptr, "PRIVMSG", strlen("PRIVMSG")) == 0 ) {
           privmsg = 1;
           break;
         }
       }
       if ( privmsg ) {
-        if ( (ptr = strtok(NULL, ":")) != NULL && (ptr = strtok(NULL, "")) != NULL ) {
-          strncpy(irc_msg, ptr, 511);
-          irc_msg[511] = '\0';
+        ptr = strtok(NULL, ":");
+        strncpy(irc_chan, ptr, CHAN_LEN - 2);
+        if ( (ptr = strtok(NULL, "")) != NULL ) {
+          strncpy(irc_msg, ptr, MSG_LEN - 2);
+          irc_msg[MSG_LEN-1] = '\0';
         }
       }
-      if ( privmsg == 1 && strlen(irc_nick) > 0 && strlen(irc_msg) > 0 ) {
+      if ( privmsg == 1 && strlen(irc_nick) > 0 && strlen(irc_msg) > 0 ) { //MOdify this
         irc_log_message(irc, irc_chan, irc_nick, irc_msg);
         if ( irc_reply_message(irc, irc_chan, irc_nick, irc_msg) < 0 )
           return -1;
@@ -138,8 +139,9 @@ static int irc_parse_action(irc_t *irc) {
 
 static int irc_reply_message(irc_t *irc, const char* channel, char *irc_nick, char *msg) {
    // Checks if someone calls on the bot.
-   if ( *msg != '!' )
+   if ( msg[0] != '!' ) {
       return 0;
+   }
 
    char *command;
    char *arg;
@@ -152,13 +154,13 @@ static int irc_reply_message(irc_t *irc, const char* channel, char *irc_nick, ch
   if ( command == NULL )
     return 0;
 
-  if ( strcmp(command, "ping") == 0) {
+  if ( strncmp(command, "ping", strlen("ping")) == 0) {
     //return cmd_ping;
-    if ( irc_msg(irc->s, channel, strcat(irc_nick, ": pong")) < 0)
+    if ( irc_msg(irc->s, channel, strncat(irc_nick, ": pong", strlen(": pong"))) < 0)
       return -1;
   } 
-  else if ( strcmp(command, "bajr") == 0 ) {
-    if ( irc_msg(irc->s, channel, strcat(irc_nick, ": bajrbajrbajr")) < 0 )
+  else if ( strncmp(command, "bajr", strlen("bajr")) == 0 ) {
+    if ( irc_msg(irc->s, channel, strncat(irc_nick, ": bajrbajrbajr", strlen(": bajrbajrbajr"))) < 0 )
       return -1;
   } 
   return 0;

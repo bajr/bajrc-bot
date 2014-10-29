@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 #define NICK_LEN 32
-#define CHAN_LEN 200
+#define CHAN_LEN 256
 #define MSG_LEN 512
 
 typedef struct chan {

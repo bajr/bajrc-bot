@@ -163,6 +163,12 @@ static int irc_reply_message(irc_t *irc, const char* channel, char *irc_nick, ch
     if ( irc_msg(irc->s, channel, strncat(irc_nick, ": bajrbajrbajr", strlen(": bajrbajrbajr"))) < 0 )
       return -1;
   } 
+  else {
+    char reply[MSG_LEN];
+    sprintf(reply, "Sorry, %s, I don't know how to do that.", irc_nick);
+    if ( irc_msg(irc->s, channel, reply) < 0 )
+      return -1;
+  }
   return 0;
 }
 

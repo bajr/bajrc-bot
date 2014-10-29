@@ -1,3 +1,4 @@
+//#include <openssl/ssl.h> Implement this later
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -33,6 +34,7 @@ int get_socket(const char* host, const char* port) {
    }
    freeaddrinfo(res);
    return s;
+
 error:
    freeaddrinfo(res);
    return -1;

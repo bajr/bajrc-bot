@@ -2,6 +2,7 @@
 #include "irc.h"
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 static int irc_parse_action(irc_t *irc);
 static int irc_leave_channel(irc_t *irc); 
@@ -16,8 +17,6 @@ static int irc_quit(int s, const char *data);
 static int irc_topic(int s, const char *channel, const char *data);
 static int irc_action(int s, const char *channel, const char *data);
 static int irc_msg(int s, const char *channel, const char *data);
-
-
 
 int irc_connect(irc_t *irc, const char* server, const char* port) {
    if ( (irc->s =  get_socket(server, port)) < 0 ) {
@@ -37,12 +36,8 @@ int irc_join_channel(irc_t *irc, const char* channel) {
    return irc_join(irc->s, channel);
 }
 
-static int irc_leave_channel(irc_t *irc) {
-   return irc_part(irc->s, irc->channel);
-}
-
 int irc_handle_data(irc_t *irc) {
-   char tempbuffer[512];
+   char tempbuffer[MSG_LEN];
    int rc, i;
 
    if ( (rc = sck_recv(irc->s, tempbuffer, sizeof(tempbuffer) - 2 ) ) <= 0 ) {
@@ -71,9 +66,25 @@ int irc_handle_data(irc_t *irc) {
    return 0;
 }
 
+int irc_set_output(irc_t *irc, const char* file) {
+   irc->file = fopen(file, "w");
+   if ( irc->file == NULL )
+      return -1;
+   return 0;
+}
+
+void irc_close(irc_t *irc) {
+   close(irc->s);
+   fclose(irc->file);
+}
+
+static int irc_leave_channel(irc_t *irc) {
+   return irc_part(irc->s, irc->channel);
+}
+
 static int irc_parse_action(irc_t *irc) {
-   char irc_nick[128];
-   char irc_msg[512];
+   //char irc_nick[NICK_LEN];
+   //char irc_msg[MSG_LEN];
 
    if ( strncmp(irc->servbuf, "PING :", 6) == 0 ) {
       return irc_pong(irc->s, &irc->servbuf[6]);
@@ -84,16 +95,15 @@ static int irc_parse_action(irc_t *irc) {
       // Still don't care
       return 0;
    } else {
-   // Here be lvl. 42 dragonn boss
    // Parses IRC message that pulls out nick and message. 
       char *ptr;
       int privmsg = 0;
-      char irc_nick[128];
-      char irc_msg[512];
+      char irc_nick[NICK_LEN];
+      char irc_msg[MSG_LEN];
       *irc_nick = '\0';
       *irc_msg = '\0';
 
-      // Checks if we have non-message string
+      // Check for non-message string
       if ( strchr(irc->servbuf, 1) != NULL )
          return 0;
    
@@ -129,13 +139,6 @@ static int irc_parse_action(irc_t *irc) {
    return 0;
 }
 
-int irc_set_output(irc_t *irc, const char* file) {
-   irc->file = fopen(file, "w");
-   if ( irc->file == NULL )
-      return -1;
-   return 0;
-}
-
 static int irc_reply_message(irc_t *irc, char *irc_nick, char *msg) {
    // Checks if someone calls on the bot.
    if ( *msg != '!' )
@@ -146,71 +149,34 @@ static int irc_reply_message(irc_t *irc, char *irc_nick, char *msg) {
    // Gets command
    command = strtok(&msg[1], " ");
    arg = strtok(NULL, "");
-   if ( arg != NULL )
-      while ( *arg == ' ' )
-         arg++;
-   if ( command == NULL )
-      return 0;
-   if ( strcmp(command, "ping") == 0) {
-      if ( irc_msg(irc->s, irc->channel, "pong") < 0)
-         return -1;
-   } else if ( strcmp(command, "bajr") == 0 ) {
-      if ( irc_msg(irc->s, irc->channel, "bajrbajrbajr") < 0 )
-         return -1;
-   } else if ( strcmp(command, "google") == 0 ) {
-      char mesg[512];
-      char t_nick[128];
-      char t_link[256];
-      char link[256] = {0};
-      char *t_arg = strtok(arg, " ");
-      if ( t_arg ) {
-         strncpy(t_nick, t_arg, 127);
-         t_nick[127] = '\0';
-      } else
-         return 0;
+  if ( arg != NULL )
+    while ( *arg == ' ' )
+      arg++;
+  if ( command == NULL )
+    return 0;
 
-      t_arg = strtok(NULL, "");
-      if ( t_arg ) {
-         while ( *t_arg == ' ' )
-            t_arg++;
-
-         strncpy(t_link, t_arg, 255);
-         t_link[255] = '\0';
-      }
-      else
-         return 0;
-
-      t_arg = strtok(t_link, " ");
-      while ( t_arg ) {
-         strncpy(&link[strlen(link)], t_arg, 254 - strlen(link));
-         t_arg = strtok(NULL, " ");
-         if ( !t_arg )
-            break;
-         strncpy(&link[strlen(link)], "%20", 254 - strlen(link));
-      }
-      snprintf(mesg, 511, "%s: http://lmgtfy.com/?q=%s", t_nick, link);
-      mesg[511] = '\0';
-      if ( irc_msg(irc->s, irc->channel, mesg) < 0 )
-         return -1;
-   }
-   
-   return 0;
+  if ( strcmp(command, "ping") == 0) {
+    //return cmd_ping;
+    if ( irc_msg(irc->s, irc->channel, strcat(irc_nick, ": pong")) < 0)
+      return -1;
+  } 
+  else if ( strcmp(command, "bajr") == 0 ) {
+    if ( irc_msg(irc->s, irc->channel, strcat(irc_nick, ": bajrbajrbajr")) < 0 )
+      return -1;
+  } 
+  return 0;
 }
 
 static int irc_log_message(irc_t *irc, const char* nick, const char* message) {
-   char timestring[128];
-   time_t curtime;
-   time(&curtime);
-   strftime(timestring, 127, "%F - %H:%M:%S", localtime(&curtime));
-   timestring[127] = '\0';
+  char timestring[128];
+  time_t curtime;
+  time(&curtime);
+  strftime(timestring, 127, "%F - %H:%M:%S", localtime(&curtime));
+  timestring[127] = '\0';
 
-   fprintf(irc->file, "%s - [%s] <%s> %s\n", irc->channel, timestring, nick, message);
-   fflush(irc->file);
-}
-
-void irc_close(irc_t *irc) {
-   close(irc->s);
-   fclose(irc->file);
+  fprintf(irc->file, "%s - [%s] <%s> %s\n", irc->channel, timestring, nick, message);
+  fflush(irc->file);
+  return 0;
 }
 
 // irc_pong: For answering pong requests...

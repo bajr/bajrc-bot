@@ -3,15 +3,18 @@
 
 #include <stdio.h>
 
-typedef struct
-{
+#define NICK_LEN 32
+#define CHAN_LEN 200
+#define MSG_LEN 512
+
+typedef struct {
    int s;
    FILE *file;
-   char channel[256]; // Why 256? Check RFC
+   char channel[CHAN_LEN]; 
    char *nick;
-   char servbuf[512]; // Why 512? Check RFC
+   char servbuf[MSG_LEN]; 
    int bufptr;
-} irc_t; 
+} irc_t;
 
 int irc_connect(irc_t *irc, const char* server, const char* port); //
 int irc_login(irc_t *irc, const char* nick); // 

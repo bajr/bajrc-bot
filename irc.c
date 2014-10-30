@@ -92,7 +92,7 @@ static int irc_parse_action(irc_t *irc) {
     // Still don't care
     return 0;
   } else {
-  // Parses IRC message that pulls out nick and message. 
+  // Parses IRC message that pulls out nick and message.
   // Sample: :bajr!bajr@reaver.cat.pdx.edu PRIVMSG #bajrden :test
     char *ptr;
     int privmsg = 0;
@@ -158,11 +158,11 @@ static int irc_reply_message(irc_t *irc, const char* chan, char *nick, char *msg
 
   if ( strncmp(command, "ping", strlen("ping")) == 0) {
     cmd_ping(irc->s, chan, nick);
-  } 
+  }
   else if ( strncmp(command, "bajr", strlen("bajr")) == 0 ) {
     if ( irc_msg(irc->s, chan, strncat(nick, ": bajrbajrbajr", strlen(": bajrbajrbajr"))) < 0 )
       return -1;
-  } 
+  }
   else {
     char reply[MSG_LEN];
     sprintf(reply, "Sorry, %s, I don't know how to do that.", nick);

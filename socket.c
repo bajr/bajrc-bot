@@ -43,7 +43,7 @@ error:
 int sck_send(int s, const char* data, size_t size) {
   size_t written = 0;
   int rc;
-  
+
   fprintf(stdout, "%s\n", data);
   while ( written < size ) {
     rc = send(s, data + written, size - written, 0);
@@ -66,9 +66,9 @@ int sck_sendf(int s, const char *fmt, ...) {
       va_end(args);
 
       // Clamp the chunk
-      if (send_len > 512) 
+      if (send_len > 512)
          send_len = 512;
-      if (sck_send( s, send_buf, send_len ) <= 0) 
+      if (sck_send( s, send_buf, send_len ) <= 0)
          return -1;
       return send_len;
    }

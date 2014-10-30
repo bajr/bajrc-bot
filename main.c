@@ -1,7 +1,7 @@
 /* Bradley Rasmussen
  *
  * forked from maister for educational purposes
- * 
+ *
  * TO DO:
  * Learn backend magic
  * See what it would take to make the bot modular. Multiple servers & channels
@@ -51,7 +51,7 @@ void init_conf (irc_t * irc, FILE * conf) {
   do {
     line = getln(conf);
     tok = strtok(line, " :");
-    if (tok != NULL) 
+    if (tok != NULL)
       sscanf(tok, "%c", &ch);
     if (ch == '{') {
       state = 1;

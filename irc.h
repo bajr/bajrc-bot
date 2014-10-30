@@ -17,9 +17,9 @@ typedef struct {
    int s;
    FILE * file;
    chan * chanlist;
-   //char channel[CHAN_LEN]; 
+   //char channel[CHAN_LEN];
    char * nick;
-   char servbuf[MSG_LEN]; 
+   char servbuf[MSG_LEN];
    int bufptr;
 } irc_t;
 

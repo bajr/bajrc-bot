@@ -12,3 +12,5 @@ $(EXEC): $(OBJECTS)
 .c.o:
 	$(CC) $(CFLAGS) $< -o $@
 
+
+

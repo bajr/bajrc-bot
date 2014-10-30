@@ -11,7 +11,7 @@
 
 #define OUTPUT "/dev/stdout"
 #define CONFIG "config"
-#define BOTNAME "bajrbot"
+
 #include "socket.h"
 #include "irc.h"
 #include <string.h>

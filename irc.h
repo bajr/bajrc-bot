@@ -6,6 +6,7 @@
 #define NICK_LEN 32
 #define CHAN_LEN 256
 #define MSG_LEN 512
+#define BOTNAME "bajrbot"
 
 typedef struct chan {
   char * name;

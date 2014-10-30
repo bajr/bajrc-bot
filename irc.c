@@ -4,8 +4,10 @@
 #include <time.h>
 #include <unistd.h>
 
+
+static int cmd_ping(int s, const char *chan, const char *nick);
 static int irc_parse_action(irc_t *irc);
-static int irc_leave_channel(irc_t *irc, const char* channel); 
+static int irc_leave_channel(irc_t *irc, const char* channel);
 static int irc_log_message(irc_t *irc, const char* channel, const char *nick, const char* msg);
 static int irc_reply_message(irc_t *irc, const char* channel, char *nick, char* msg);
 static int irc_pong(int s, const char *data);
@@ -137,17 +139,17 @@ static int irc_parse_action(irc_t *irc) {
   return 0;
 }
 
-static int irc_reply_message(irc_t *irc, const char* channel, char *irc_nick, char *msg) {
-   // Checks if someone calls on the bot.
-   if ( msg[0] != '!' ) {
-      return 0;
-   }
+static int irc_reply_message(irc_t *irc, const char* chan, char *nick, char *msg) {
+  // Checks if someone calls on the bot.
+  if ( msg[0] != '!' ) {
+    return 0;
+  }
 
-   char *command;
-   char *arg;
-   // Gets command
-   command = strtok(&msg[1], " ");
-   arg = strtok(NULL, "");
+  char *command;
+  char *arg;
+  // Gets command
+  command = strtok(&msg[1], " ");
+  arg = strtok(NULL, "");
   if ( arg != NULL )
     while ( *arg == ' ' )
       arg++;
@@ -155,18 +157,16 @@ static int irc_reply_message(irc_t *irc, const char* channel, char *irc_nick, ch
     return 0;
 
   if ( strncmp(command, "ping", strlen("ping")) == 0) {
-    //return cmd_ping;
-    if ( irc_msg(irc->s, channel, strncat(irc_nick, ": pong", strlen(": pong"))) < 0)
-      return -1;
+    cmd_ping(irc->s, chan, nick);
   } 
   else if ( strncmp(command, "bajr", strlen("bajr")) == 0 ) {
-    if ( irc_msg(irc->s, channel, strncat(irc_nick, ": bajrbajrbajr", strlen(": bajrbajrbajr"))) < 0 )
+    if ( irc_msg(irc->s, chan, strncat(nick, ": bajrbajrbajr", strlen(": bajrbajrbajr"))) < 0 )
       return -1;
   } 
   else {
     char reply[MSG_LEN];
-    sprintf(reply, "Sorry, %s, I don't know how to do that.", irc_nick);
-    if ( irc_msg(irc->s, channel, reply) < 0 )
+    sprintf(reply, "Sorry, %s, I don't know how to do that.", nick);
+    if ( irc_msg(irc->s, chan, reply) < 0 )
       return -1;
   }
   return 0;
@@ -182,6 +182,15 @@ static int irc_log_message(irc_t *irc, const char* channel, const char* nick, co
   fprintf(irc->file, "%s - [%s] <%s> %s\n", channel, timestring, nick, message);
   fflush(irc->file);
   return 0;
+}
+
+static int cmd_ping (int s, const char *chan, const char *nick) { // check chan length first
+  char * msg = NULL;
+  msg = malloc(strlen(nick) + strlen(": pong") + 2);
+
+  fprintf(stderr, "CHAN: %s : NICK: %s\n", chan, nick);
+  if ( irc_msg(s, chan, strncat(nick, ": pong", strlen(": pong"))) < 0)
+    return -1;
 }
 
 // irc_pong: For answering pong requests...

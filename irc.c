@@ -122,9 +122,11 @@ static int irc_parse_action(irc_t *irc) {
         }
       }
       if ( privmsg ) {
-        ptr = strtok(NULL, ":");
+        ptr = strtok(NULL, " :");
         strncpy(irc_chan, ptr, CHAN_LEN - 2);
         if ( (ptr = strtok(NULL, "")) != NULL ) {
+          if (ptr[0] == ':')
+            ++ptr;
           strncpy(irc_msg, ptr, MSG_LEN - 2);
           irc_msg[MSG_LEN-1] = '\0';
         }
@@ -157,7 +159,7 @@ static int irc_reply_message(irc_t *irc, const char* chan, char *nick, char *msg
     return 0;
 
   if ( strncmp(command, "ping", strlen("ping")) == 0) {
-    cmd_ping(irc->s, chan, nick);
+    return cmd_ping(irc->s, chan, nick);
   }
   else if ( strncmp(command, "bajr", strlen("bajr")) == 0 ) {
     if ( irc_msg(irc->s, chan, strncat(nick, ": bajrbajrbajr", strlen(": bajrbajrbajr"))) < 0 )
@@ -187,10 +189,17 @@ static int irc_log_message(irc_t *irc, const char* channel, const char* nick, co
 static int cmd_ping (int s, const char *chan, const char *nick) { // check chan length first
   char * msg = NULL;
   msg = malloc(strlen(nick) + strlen(": pong") + 2);
+  strncpy(msg, nick, strlen(nick));
+  msg[strlen(nick)] = 0;
+  strncat(msg, ": pong\0", strlen(": pong\0"));
+  if ( strncmp(chan, BOTNAME, strlen(BOTNAME)) == 0) {
+    chan = nick;
+  }
 
-  fprintf(stderr, "CHAN: %s : NICK: %s\n", chan, nick);
-  if ( irc_msg(s, chan, strncat(nick, ": pong", strlen(": pong"))) < 0)
+  if ( irc_msg(s, chan, msg) < 0)
     return -1;
+  else
+    return 0;
 }
 
 // irc_pong: For answering pong requests...

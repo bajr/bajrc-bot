@@ -1,11 +1,11 @@
 #include "socket.h"
 #include "irc.h"
+#include "cmd.h"
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
 
 
-static int cmd_ping(int s, const char *chan, const char *nick);
 static int irc_parse_action(irc_t *irc);
 static int irc_leave_channel(irc_t *irc, const char* channel);
 static int irc_log_message(irc_t *irc, const char* channel, const char *nick, const char* msg);
@@ -18,7 +18,6 @@ static int irc_nick(int s, const char *data);
 static int irc_quit(int s, const char *data);
 static int irc_topic(int s, const char *channel, const char *data);
 static int irc_action(int s, const char *channel, const char *data);
-static int irc_msg(int s, const char *channel, const char *data);
 
 int irc_connect(irc_t *irc, const char* server, const char* port) {
    if ( (irc->s =  get_socket(server, port)) < 0 ) {
@@ -186,21 +185,7 @@ static int irc_log_message(irc_t *irc, const char* channel, const char* nick, co
   return 0;
 }
 
-static int cmd_ping (int s, const char *chan, const char *nick) { // check chan length first
-  char * msg = NULL;
-  msg = malloc(strlen(nick) + strlen(": pong") + 2);
-  strncpy(msg, nick, strlen(nick));
-  msg[strlen(nick)] = 0;
-  strncat(msg, ": pong\0", strlen(": pong\0"));
-  if ( strncmp(chan, BOTNAME, strlen(BOTNAME)) == 0) {
-    chan = nick;
-  }
 
-  if ( irc_msg(s, chan, msg) < 0)
-    return -1;
-  else
-    return 0;
-}
 
 // irc_pong: For answering pong requests...
 static int irc_pong(int s, const char *data) {
@@ -246,7 +231,7 @@ static int irc_action(int s, const char *channel, const char *data) {
 }
 
 // irc_msg: For sending a channel message or a query
-static int irc_msg(int s, const char *channel, const char *data) {
+int irc_msg(int s, const char *channel, const char *data) {
    return sck_sendf(s, "PRIVMSG %s :%s\r\n", channel, data);
 }
 

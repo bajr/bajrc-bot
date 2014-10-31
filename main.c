@@ -9,12 +9,13 @@
  * Make code more "secure"
  */
 
-#define OUTPUT "/dev/stdout"
-#define CONFIG "config"
-
 #include "socket.h"
 #include "irc.h"
+#include "cmd.h"
 #include <string.h>
+
+#define OUTPUT "/dev/stdout"
+#define CONFIG "config"
 
 char *getln(FILE *conf);
 void init_conf(irc_t *irc, FILE * conf);

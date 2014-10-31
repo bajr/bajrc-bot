@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-c -g -Wall
-SOURCE=main.c irc.c socket.c
+SOURCE=main.c irc.c socket.c cmd.c
 OBJECTS=$(SOURCE:.c=.o)
 EXEC=bajrcbot
 

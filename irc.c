@@ -8,8 +8,8 @@
 
 static int irc_parse_action(irc_t *irc);
 static int irc_leave_channel(irc_t *irc, const char* channel);
-static int irc_log_message(irc_t *irc, const char* channel, const char *nick, const char* msg);
-static int irc_reply_message(irc_t *irc, const char* channel, char *nick, char* msg);
+static int irc_log_message(irc_t *irc, char* channel, char *nick, char* msg);
+static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl, char* msg, int msgl);
 static int irc_pong(int s, const char *data);
 static int irc_reg(int s, const char *nick, const char *username, const char *fullname);
 static int irc_join(int s, const char *data);
@@ -94,11 +94,11 @@ static int irc_parse_action(irc_t *irc) {
   // Parses IRC message that pulls out nick and message.
   // Sample: :bajr!bajr@reaver.cat.pdx.edu PRIVMSG #bajrden :test
     char *ptr;
-    int privmsg = 0;
-    char irc_nick[NICK_LEN];
-    char irc_msg[MSG_LEN];
-    char irc_chan[CHAN_LEN];
-    fprintf(stdout, "%s\n", irc->servbuf); // For debugging
+    int privmsg = 0, nicklen = 0, msglen = 0, chanlen = 0;
+    char * nick;
+    char * msg;
+    char * chan;
+    //fprintf(stdout, "%s\n", irc->servbuf); // For debugging
 
     // Check for non-message string
     if ( strchr(irc->servbuf, 1) != NULL )
@@ -110,8 +110,10 @@ static int irc_parse_action(irc_t *irc) {
         fprintf(stderr, "ptr == NULL\n");
         return 0;
       } else {
-        strncpy(irc_nick, &ptr[1], NICK_LEN-2);
-        irc_nick[NICK_LEN-1] = '\0';
+        nicklen = strlen(ptr);
+        nick = malloc(nicklen + 1);
+        strncpy(nick, &ptr[1], nicklen + 1);
+        nick[nicklen] = 0;
       }
 
       while ( (ptr = strtok(NULL, " ")) != NULL ) {
@@ -120,60 +122,86 @@ static int irc_parse_action(irc_t *irc) {
           break;
         }
       }
+
       if ( privmsg ) {
         ptr = strtok(NULL, " :");
-        strncpy(irc_chan, ptr, CHAN_LEN - 2);
+        chan = malloc(chanlen + 1);
+        chanlen = strlen(ptr);
+        strncpy(chan, ptr, chanlen + 1);
+        chan[chanlen] = 0;
         if ( (ptr = strtok(NULL, "")) != NULL ) {
           if (ptr[0] == ':')
             ++ptr;
-          strncpy(irc_msg, ptr, MSG_LEN - 2);
-          irc_msg[MSG_LEN-1] = '\0';
+          msglen = strlen(ptr);
+          msg = malloc(msglen + 1);
+          strncpy(msg, ptr, msglen + 1);
+          msg[msglen] = 0;
         }
-      }
-      if ( privmsg == 1 && strlen(irc_nick) > 0 && strlen(irc_msg) > 0 ) { //MOdify this
-        irc_log_message(irc, irc_chan, irc_nick, irc_msg);
-        if ( irc_reply_message(irc, irc_chan, irc_nick, irc_msg) < 0 )
-          return -1;
+
+        if ( nicklen > 0 && msglen > 0 ) {
+          irc_log_message(irc, chan, nick, msg);
+          if ( irc_reply_message(irc->s, chan, chanlen, nick, nicklen, msg, msglen) < 0 )
+            return -1;
+        }
       }
     }
   }
   return 0;
 }
 
-static int irc_reply_message(irc_t *irc, const char* chan, char *nick, char *msg) {
+static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl, char *msg, int msgl) {
   // Checks if someone calls on the bot.
   if ( msg[0] != '!' ) {
     return 0;
   }
-
+  char *ptr;
   char *command;
   char *arg;
-  // Gets command
-  command = strtok(&msg[1], " ");
-  arg = strtok(NULL, "");
+  int argl = 0;
+  ptr = strtok(&msg[1], " ");
+  if ( ptr != NULL) {
+    command = malloc(strlen(ptr) + 1);
+    strncpy(command, ptr, strlen(ptr));
+    command[strlen(ptr)] = 0;
+  }
+
+  ptr = strtok(NULL, "");
+  if ( ptr != NULL) {
+    argl = strlen(ptr);
+    arg = malloc(argl + 1);
+    strncpy(arg, ptr, argl);
+    arg[argl] = 0;
+  }
+
   if ( arg != NULL )
     while ( *arg == ' ' )
       arg++;
   if ( command == NULL )
     return 0;
 
-  if ( strncmp(command, "ping", strlen("ping")) == 0) {
-    return cmd_ping(irc->s, chan, nick);
+
+  if (strncmp(command, "help", strlen("help")) == 0) {
+    return cmd_help(s, chan, chanl, nick, nickl, arg, argl);
+  }
+  else if ( strncmp(command, "ping", strlen("ping")) == 0) {
+    return cmd_ping(s, chan, chanl, nick, nickl);
   }
   else if ( strncmp(command, "bajr", strlen("bajr")) == 0 ) {
-    if ( irc_msg(irc->s, chan, strncat(nick, ": bajrbajrbajr", strlen(": bajrbajrbajr"))) < 0 )
-      return -1;
+    return cmd_bajr(s, chan, chanl, nick, nickl);
+  }
+  else if ( strncmp(command, "roll", strlen("roll")) == 0 ) {
+    return cmd_roll(s, chan, chanl, nick, nickl, arg, argl);
   }
   else {
     char reply[MSG_LEN];
     sprintf(reply, "Sorry, %s, I don't know how to do that.", nick);
-    if ( irc_msg(irc->s, chan, reply) < 0 )
+    if ( irc_msg(s, chan, reply) < 0 )
       return -1;
   }
   return 0;
 }
 
-static int irc_log_message(irc_t *irc, const char* channel, const char* nick, const char* message) {
+static int irc_log_message(irc_t *irc, char* channel, char* nick, char* message) {
   char timestring[128];
   time_t curtime;
   time(&curtime);

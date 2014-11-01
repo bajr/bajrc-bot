@@ -44,6 +44,8 @@ exit_err:
   exit(1);
 }
 
+
+
 void init_conf (irc_t * irc, FILE * conf) {
   char *servname = NULL, *servport = NULL, *line = NULL, *tok = NULL, ch = 0;
   int state = 0;
@@ -63,7 +65,6 @@ void init_conf (irc_t * irc, FILE * conf) {
     else if (state == 0 && tok != NULL) {
       servname = tok;
       servport = strtok(NULL, " :");
-      fprintf(stderr, "%s:%s\n", servname, servport);
       if ( irc_connect(irc, servname, servport) < 0 ) {
         fprintf(stderr, "Connection to %s:%sfailed.\n", servname, servport);
       }
@@ -74,7 +75,6 @@ void init_conf (irc_t * irc, FILE * conf) {
       irc->chanlist->name = malloc(strlen(tok)+1);
       strcpy(irc->chanlist->name, tok);
       irc->chanlist->next = link;
-      fprintf(stderr, "%s\n", irc->chanlist->name);
     }
   } while (line != NULL);
 
@@ -105,6 +105,7 @@ char *getln(FILE *file) {
       return NULL;
     if (ch == '\n')
       ch = 0;
+    
     // Check if we need to expand.
     if (size <= index) {
       size += sizeof(char);

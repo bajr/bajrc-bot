@@ -122,7 +122,7 @@ char * find_rts (char *chan, char *nick) {
   if ( strncmp(chan, BOTNAME, strlen(BOTNAME)) == 0) {
     dest = nick;
     if ( nick != NULL)
-      free(nick);
+      free(chan);
   }
   else
     dest = chan;

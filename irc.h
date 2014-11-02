@@ -7,6 +7,7 @@
 #define CHAN_LEN 256
 #define MSG_LEN 512
 #define BOTNAME "bajrbot"
+#define OWNER "bajr"
 
 typedef struct chan {
   char * name;
@@ -29,6 +30,9 @@ int irc_handle_data(irc_t *irc);
 int irc_set_output(irc_t *irc, const char* file);
 void irc_close(irc_t *irc);
 
+int irc_join(int s, char *data);
+int irc_part(int s, char *data);
 int irc_msg(int s, char *channel, char *data);
+int irc_quit(int s, char *data);
 
 #endif

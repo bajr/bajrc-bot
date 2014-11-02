@@ -12,10 +12,7 @@ static int irc_log_message(irc_t *irc, char* channel, char *nick, char* msg);
 static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl, char* msg, int msgl);
 static int irc_pong(int s, const char *data);
 static int irc_reg(int s, const char *nick, const char *username, const char *fullname);
-static int irc_join(int s, const char *data);
-static int irc_part(int s, const char *data);
 static int irc_nick(int s, const char *data);
-static int irc_quit(int s, const char *data);
 static int irc_topic(int s, const char *channel, const char *data);
 static int irc_action(int s, const char *channel, const char *data);
 
@@ -125,8 +122,8 @@ static int irc_parse_action(irc_t *irc) {
 
       if ( privmsg ) {
         ptr = strtok(NULL, " :");
-        chan = malloc(chanlen + 1);
         chanlen = strlen(ptr);
+        chan = malloc(chanlen + 1);
         strncpy(chan, ptr, chanlen + 1);
         chan[chanlen] = 0;
         if ( (ptr = strtok(NULL, "")) != NULL ) {
@@ -197,6 +194,15 @@ static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl
   else if ( strncmp(command, "roll", strlen("roll")) == 0 ) {
     return cmd_roll(s, chan, chanl, nick, nickl, arg, argl);
   }
+  else if ( strncmp(command, "join", strlen("join")) == 0 ) {
+    return cmd_join(s, chan, chanl, nick, nickl, arg, argl);
+  }
+  else if ( strncmp(command, "part", strlen("part")) == 0 ) {
+    return cmd_part(s, chan, chanl, nick, nickl, arg, argl);
+  }
+  else if ( strncmp(command, "quit", strlen("quit")) == 0 ) {
+    return cmd_quit(s, chan, chanl, nick, nickl);
+  }
   else {
     char reply[MSG_LEN];
     sprintf(reply, "Sorry, %s, I don't know how to do that.", nick);
@@ -231,15 +237,21 @@ static int irc_reg(int s, const char *nick, const char *username, const char *fu
 }
 
 // irc_join: For joining a channel
-static int irc_join(int s, const char *data) {
-   return sck_sendf(s, "JOIN %s\r\n", data);
+int irc_join(int s, char *data) {
+  int ret = sck_sendf(s, "JOIN %s\r\n", data);
+  if ( data != NULL)
+    free(data);
 
+  return ret;
 }
 
 // irc_part: For leaving a channel
-static int irc_part(int s, const char *data) {
-   return sck_sendf(s, "PART %s\r\n", data);
+int irc_part(int s, char *data) {
+  int ret = sck_sendf(s, "PART %s\r\n", data);
+  if ( data != NULL)
+    free(data);
 
+  return ret;
 }
 
 // irc_nick: For changing your nick
@@ -249,7 +261,7 @@ static int irc_nick(int s, const char *data) {
 }
 
 // irc_quit: For quitting IRC
-static int irc_quit(int s, const char *data) {
+int irc_quit(int s, char *data) {
    return sck_sendf(s, "QUIT :%s\r\n", data);
 }
 
@@ -266,6 +278,7 @@ static int irc_action(int s, const char *channel, const char *data) {
 // irc_msg: For sending a channel message or a query
 int irc_msg(int s, char *channel, char *data) {
   int ret = sck_sendf(s, "PRIVMSG %s :%s\r\n", channel, data);
+
   if ( channel != NULL) 
     free(channel);
   if ( data != NULL)

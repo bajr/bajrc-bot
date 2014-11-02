@@ -115,6 +115,46 @@ int cmd_roll(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int
     return 0;
 }
 
+int cmd_join(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int argl) {
+  char *ptr = NULL, * newchan = NULL, * newchankey = NULL;
+  
+  if ( strcmp(nick, OWNER) != 0) {
+//    return irc_msg(s, find_rts(chan, nick), "You're not the boss of me!");
+  }
+
+  if ( arg == NULL) {
+//    return irc_msg(s, chan, "Please specify a channel.");
+  }
+  else {
+    ptr = strtok(arg, " ");
+    newchan = malloc(strlen(ptr)+1);
+    strcpy(newchan, ptr);
+
+    ptr = strtok(NULL, " ");
+    if ( ptr != NULL) {
+      newchankey = malloc(strlen(ptr)+1);
+      strcpy(newchankey, ptr);
+    }
+
+    if ( newchan[0] != '#' ) {
+//      return irc_msg(s, chan, "That's not a channel");
+    }
+
+    if ( irc_join(s, newchan) < 0)
+      return -1;
+    else
+      return 0;
+  }
+}
+
+int cmd_part(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int argl) {
+
+}
+
+int cmd_quit(int s, char *chan, int chanl, char *nick, int nickl) {
+
+}
+
 // Return to sender
 char * find_rts (char *chan, char *nick) {
   char * dest;

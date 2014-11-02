@@ -47,25 +47,66 @@ int cmd_bajr(int s, char *chan, int chanl, char *nick, int nickl) {
 }
 
 int cmd_roll(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int argl) {
-  char * msg = NULL;
-  int num = 0, sides = 0;
-  sscanf(arg, "%id%i", &num, &sides);
+  char tmpmsg[MSG_LEN], tmpstr[NICK_LEN], * msg = NULL;
+  int num = -1, sides = -1, mod = 0, sum = 0;
 
-  if (num <= 0 || sides <= 0) {
-    int errlen = strlen(":  is not a valid roll.");
-    msg = malloc(nickl + argl + errlen + 1);
-    strncpy(msg, nick, nickl);
-    msg[nickl] = 0;
-    strcat(msg, ": ");
-    strcat(msg, arg);
-    strncat(msg, " is not a valid roll.", errlen);
+  if ( arg != NULL) {
+    sscanf(arg, "%id%s + %i", &num, tmpstr, &mod);
+  }
+
+  if (sscanf(tmpstr, "%d", &sides) == 0) {
+    if (strcmp(tmpstr, "bajr") != 0) {
+      strncpy(tmpmsg, nick, nickl);
+      strcat(tmpmsg, ": ");
+      if (arg != NULL)
+        strncat(tmpmsg, arg, argl);
+      strcat(tmpmsg, " is not a valid roll.");
+    }
+    else {
+      strncpy(tmpmsg, nick, nickl);
+      strcat(tmpmsg, ": ");
+      strcat(tmpmsg, arg);
+      strcat(tmpmsg, " = ");
+
+      while (num > 0) {
+        if (strlen(tmpmsg) < MSG_LEN / 2)
+          strcat(tmpmsg, "bajr");
+        --num;
+      }
+    }
   }
   else {
-    msg = malloc(nickl + strlen(": Rolling ") + argl + 1);
-    strncpy(msg, nick, nickl);
-    msg[nickl] = 0;
-    strncat(msg, ": Rolling ", strlen(": Rolling "));
-    strncat(msg, arg, argl);
+    if (num <= 0 || sides <= 0) {
+      strncpy(tmpmsg, nick, nickl);
+      strcat(tmpmsg, ": ");
+      if (arg != NULL)
+        strncat(tmpmsg, arg, argl);
+      strcat(tmpmsg, " is not a valid roll.");
+    }
+    else {
+      srand(time(NULL));
+      strcpy(tmpmsg, nick);
+      strcat(tmpmsg, ": ");
+      strcat(tmpmsg, arg);
+      strcat(tmpmsg, " = ");
+    
+      while (num > 0) {
+        sum += rand() % sides + 1;
+        --num;
+      }
+    
+      sum += mod;
+    
+      sprintf(tmpstr, "%d", sum);
+      strcat(tmpmsg, tmpstr);
+    }
+  }
+
+  msg = malloc(strlen(tmpmsg));
+  strcpy(msg, tmpmsg);
+
+  if ( arg != NULL ); {
+    free(arg);
   }
 
   if ( irc_msg(s, find_rts(chan, nick), msg) < 0 )
@@ -80,6 +121,8 @@ char * find_rts (char *chan, char *nick) {
 
   if ( strncmp(chan, BOTNAME, strlen(BOTNAME)) == 0) {
     dest = nick;
+    if ( nick != NULL)
+      free(nick);
   }
   else
     dest = chan;

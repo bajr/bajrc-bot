@@ -171,11 +171,16 @@ static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl
     arg = malloc(argl + 1);
     strncpy(arg, ptr, argl);
     arg[argl] = 0;
+
+    if ( argl != 0)
+      while ( *arg == ' ' )
+        arg++;
+  }
+  else {
+    arg = NULL;
+    argl = 0;
   }
 
-  if ( arg != NULL )
-    while ( *arg == ' ' )
-      arg++;
   if ( command == NULL )
     return 0;
 
@@ -259,7 +264,13 @@ static int irc_action(int s, const char *channel, const char *data) {
 }
 
 // irc_msg: For sending a channel message or a query
-int irc_msg(int s, const char *channel, const char *data) {
-   return sck_sendf(s, "PRIVMSG %s :%s\r\n", channel, data);
+int irc_msg(int s, char *channel, char *data) {
+  int ret = sck_sendf(s, "PRIVMSG %s :%s\r\n", channel, data);
+  if ( channel != NULL) 
+    free(channel);
+  if ( data != NULL)
+    free(data);
+
+  return ret;
 }
 

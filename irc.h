@@ -29,6 +29,6 @@ int irc_handle_data(irc_t *irc);
 int irc_set_output(irc_t *irc, const char* file);
 void irc_close(irc_t *irc);
 
-int irc_msg(int s, const char *channel, const char *data);
+int irc_msg(int s, char *channel, char *data);
 
 #endif

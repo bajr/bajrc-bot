@@ -5,9 +5,8 @@
 #include <time.h>
 #include <unistd.h>
 
-
 static int irc_parse_action(irc_t *irc);
-static int irc_leave_channel(irc_t *irc, const char* channel);
+static int irc_leave_channel(irc_t *irc, char* channel);
 static int irc_log_message(irc_t *irc, char* channel, char *nick, char* msg);
 static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl, char* msg, int msgl);
 static int irc_pong(int s, const char *data);
@@ -28,7 +27,7 @@ int irc_login(irc_t *irc, const char* nick) {
    return irc_reg(irc->s, nick, "bajr", "bajrbajr");
 }
 
-int irc_join_channel(irc_t *irc, const char* channel) {
+int irc_join_channel(irc_t *irc, char* channel) {
    return irc_join(irc->s, channel);
 }
 
@@ -74,7 +73,7 @@ void irc_close(irc_t *irc) {
    fclose(irc->file);
 }
 
-static int irc_leave_channel(irc_t *irc, const char* channel) {
+static int irc_leave_channel(irc_t *irc, char* channel) {
    return irc_part(irc->s, channel);
 }
 
@@ -151,11 +150,13 @@ static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl
   if ( msg[0] != '!' ) {
     return 0;
   }
+
   char *ptr;
   char *command;
   char *arg;
-  int argl = 0;
+  int argl = 0, ret = 0;
   ptr = strtok(&msg[1], " ");
+
   if ( ptr != NULL) {
     command = malloc(strlen(ptr) + 1);
     strncpy(command, ptr, strlen(ptr));
@@ -183,33 +184,32 @@ static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl
 
 
   if (strncmp(command, "help", strlen("help")) == 0) {
-    return cmd_help(s, chan, chanl, nick, nickl, arg, argl);
+    ret = cmd_help(s, chan, chanl, nick, nickl, arg, argl);
   }
   else if ( strncmp(command, "ping", strlen("ping")) == 0) {
-    return cmd_ping(s, chan, chanl, nick, nickl);
-  }
-  else if ( strncmp(command, "bajr", strlen("bajr")) == 0 ) {
-    return cmd_bajr(s, chan, chanl, nick, nickl);
+    ret = cmd_ping(s, chan, chanl, nick, nickl);
   }
   else if ( strncmp(command, "roll", strlen("roll")) == 0 ) {
-    return cmd_roll(s, chan, chanl, nick, nickl, arg, argl);
+    ret = cmd_roll(s, chan, chanl, nick, nickl, arg, argl);
   }
   else if ( strncmp(command, "join", strlen("join")) == 0 ) {
-    return cmd_join(s, chan, chanl, nick, nickl, arg, argl);
+    ret = cmd_join(s, chan, chanl, nick, nickl, arg, argl);
   }
   else if ( strncmp(command, "part", strlen("part")) == 0 ) {
-    return cmd_part(s, chan, chanl, nick, nickl, arg, argl);
+    ret = cmd_part(s, chan, chanl, nick, nickl, arg, argl);
   }
   else if ( strncmp(command, "quit", strlen("quit")) == 0 ) {
-    return cmd_quit(s, chan, chanl, nick, nickl);
+    ret = cmd_quit(s, chan, chanl, nick, nickl);
   }
-  else {
-    char reply[MSG_LEN];
-    sprintf(reply, "Sorry, %s, I don't know how to do that.", nick);
-    if ( irc_msg(s, chan, reply) < 0 )
-      return -1;
-  }
-  return 0;
+
+  if ( chan != NULL)
+    free(chan);
+  if ( nick != NULL)
+    free(nick);
+  if ( arg != NULL)
+    free(arg);
+
+  return ret;
 }
 
 static int irc_log_message(irc_t *irc, char* channel, char* nick, char* message) {
@@ -239,8 +239,6 @@ static int irc_reg(int s, const char *nick, const char *username, const char *fu
 // irc_join: For joining a channel
 int irc_join(int s, char *data) {
   int ret = sck_sendf(s, "JOIN %s\r\n", data);
-  if ( data != NULL)
-    free(data);
 
   return ret;
 }
@@ -248,8 +246,6 @@ int irc_join(int s, char *data) {
 // irc_part: For leaving a channel
 int irc_part(int s, char *data) {
   int ret = sck_sendf(s, "PART %s\r\n", data);
-  if ( data != NULL)
-    free(data);
 
   return ret;
 }
@@ -278,11 +274,6 @@ static int irc_action(int s, const char *channel, const char *data) {
 // irc_msg: For sending a channel message or a query
 int irc_msg(int s, char *channel, char *data) {
   int ret = sck_sendf(s, "PRIVMSG %s :%s\r\n", channel, data);
-
-  if ( channel != NULL) 
-    free(channel);
-  if ( data != NULL)
-    free(data);
 
   return ret;
 }

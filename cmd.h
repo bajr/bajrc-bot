@@ -12,6 +12,4 @@ int cmd_join(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int
 int cmd_part(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int argl);
 int cmd_quit(int s, char *chan, int chanl, char *nick, int nickl);
 
-char* find_rts (char *chan, char *nick);
-int make_msg ( char tmpmsg[], const char *format, ...);
 #endif

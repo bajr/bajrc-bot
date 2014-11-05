@@ -78,6 +78,7 @@ static int irc_leave_channel(irc_t *irc, char* channel) {
 }
 
 static int irc_parse_action(irc_t *irc) {
+  int ret = 0;
   if ( strncmp(irc->servbuf, "PING :", 6) == 0 ) {
     return irc_pong(irc->s, &irc->servbuf[6]);
   } else if ( strncmp(irc->servbuf, "NOTICE AUTH :", 13) == 0 ) {
@@ -89,11 +90,9 @@ static int irc_parse_action(irc_t *irc) {
   } else {
   // Parses IRC message that pulls out nick and message.
   // Sample: :bajr!bajr@reaver.cat.pdx.edu PRIVMSG #bajrden :test
-    char *ptr;
+    char *ptr = NULL;
     int privmsg = 0, nicklen = 0, msglen = 0, chanlen = 0;
-    char * nick;
-    char * msg;
-    char * chan;
+    char * nick = NULL, * msg = NULL, * chan = NULL;
     //fprintf(stdout, "%s\n", irc->servbuf); // For debugging
 
     // Check for non-message string
@@ -137,26 +136,31 @@ static int irc_parse_action(irc_t *irc) {
         if ( nicklen > 0 && msglen > 0 ) {
           irc_log_message(irc, chan, nick, msg);
           if ( irc_reply_message(irc->s, chan, chanlen, nick, nicklen, msg, msglen) < 0 )
-            return -1;
+            ret = -1;
         }
       }
     }
+    if ( chan != NULL)
+      free(chan);
+    if ( nick != NULL)
+      free(nick);
+    if ( msg != NULL)
+      free(msg);
   }
-  return 0;
+  return ret;
 }
 
 static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl, char *msg, int msgl) {
   // Checks if someone calls on the bot.
-  if ( msg[0] != '!' ) {
-    return 0;
-  }
-
-  char *ptr;
-  char *command;
-  char *arg;
+  char *ptr = NULL, *command = NULL, *arg = NULL;
   int argl = 0, ret = 0;
-  ptr = strtok(&msg[1], " ");
+  
 
+  ptr = strtok(&msg[0], " :");
+  if ( ptr != NULL && strcmp(ptr, BOTNAME) != 0)
+    return 0;
+  
+  ptr = strtok(NULL, " ");
   if ( ptr != NULL) {
     command = malloc(strlen(ptr) + 1);
     strncpy(command, ptr, strlen(ptr));
@@ -182,7 +186,6 @@ static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl
   if ( command == NULL )
     return 0;
 
-
   if (strncmp(command, "help", strlen("help")) == 0) {
     ret = cmd_help(s, chan, chanl, nick, nickl, arg, argl);
   }
@@ -201,11 +204,9 @@ static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl
   else if ( strncmp(command, "quit", strlen("quit")) == 0 ) {
     ret = cmd_quit(s, chan, chanl, nick, nickl);
   }
-
-  if ( chan != NULL)
-    free(chan);
-  if ( nick != NULL)
-    free(nick);
+  
+  if ( command != NULL)
+    free(command);
   if ( arg != NULL)
     free(arg);
 

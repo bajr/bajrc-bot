@@ -29,6 +29,7 @@ int main(int argc, char **argv) {
   irc.chanlist = NULL;
 
   init_conf(&irc, conf);
+
   while ( irc_handle_data(&irc) >= 0 );
 
   irc_close(&irc);
@@ -53,9 +54,12 @@ void init_conf (irc_t * irc, FILE * conf) {
 
   do {
     line = getln(conf);
-    tok = strtok(line, " :");
+
+    if (line != NULL)
+      tok = strtok(line, " :");
     if (tok != NULL)
       sscanf(tok, "%c", &ch);
+
     if (ch == '{') {
       state = 1;
     }
@@ -76,6 +80,8 @@ void init_conf (irc_t * irc, FILE * conf) {
       strcpy(irc->chanlist->name, tok);
       irc->chanlist->next = link;
     }
+    if (line != NULL)
+      free(line);
   } while (line != NULL);
 
   if ( irc_login(irc, BOTNAME) < 0 ) {
@@ -93,8 +99,8 @@ void init_conf (irc_t * irc, FILE * conf) {
 
 // This method is kind of cludgy for making dynamic strings
 // Does not cut whitespace
-char *getln(FILE *file) {
-  char *line = NULL, *tmp = NULL;
+char* getln(FILE *file) {
+  char *line = NULL, tmp[MSG_LEN];
   size_t size = 0, index = 0;
   int ch = EOF;
 
@@ -105,19 +111,11 @@ char *getln(FILE *file) {
       return NULL;
     if (ch == '\n')
       ch = 0;
-    
-    // Check if we need to expand.
-    if (size <= index) {
-      size += sizeof(char);
-      tmp = realloc(line, size);
-      if (!tmp) {
-        free(line);
-        line = NULL;
-        break;
-      }
-      line = tmp;
-    }
-    line[index++] = ch;
+
+    tmp[index++] = ch;
   }
+
+  line = malloc(strlen(tmp)+1);
+  strcpy(line, tmp);
   return line;
 }

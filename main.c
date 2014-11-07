@@ -35,14 +35,6 @@ int main(int argc, char **argv) {
   irc_close(&irc);
   fclose(conf);
   return 0;
-
-exit_err:
-  if ( irc.s >= 0) {
-    irc_close(&irc);
-  }
-  fclose(conf);
-  fprintf(stderr,"Fatal error occurred.\n");
-  exit(1);
 }
 
 
@@ -50,15 +42,20 @@ exit_err:
 void init_conf (irc_t * irc, FILE * conf) {
   char *servname = NULL, *servport = NULL, *line = NULL, *tok = NULL, ch = 0;
   int state = 0;
-  chan * link = NULL;
 
   do {
     line = getln(conf);
+    ch = 0;
+    tok = NULL;
 
     if (line != NULL)
       tok = strtok(line, " :");
-    if (tok != NULL)
-      sscanf(tok, "%c", &ch);
+    if (tok != NULL) {
+      if (strcmp(tok, "") == 0)
+        tok = NULL;
+      if (tok != NULL)
+        ch = tok[0];
+    }
 
     if (ch == '{') {
       state = 1;
@@ -72,36 +69,27 @@ void init_conf (irc_t * irc, FILE * conf) {
       if ( irc_connect(irc, servname, servport) < 0 ) {
         fprintf(stderr, "Connection to %s:%sfailed.\n", servname, servport);
       }
+      else {
+        if ( irc_login(irc, BOTNAME) < 0 ) {
+          fprintf(stderr, "Couldn't log in.\n");
+        }
+      }
     }
     else if (state == 1 && tok != NULL && ch == '#') {
-      link = irc->chanlist;
-      irc->chanlist = malloc(sizeof(chan));
-      irc->chanlist->name = malloc(strlen(tok)+1);
-      strcpy(irc->chanlist->name, tok);
-      irc->chanlist->next = link;
+      irc_join(irc, tok);
     }
-    if (line != NULL)
+
+    if (line != NULL) {
       free(line);
-  } while (line != NULL);
-
-  if ( irc_login(irc, BOTNAME) < 0 ) {
-    fprintf(stderr, "Couldn't log in.\n");
-  }
-
-  link = irc->chanlist;
-  while (link != NULL) {
-    if ( irc_join_channel(irc, link->name) < 0 ) {
-      fprintf(stderr, "Couldn't join channel.\n");
     }
-    link = link->next;
-  }
+  } while (line != NULL);
 }
 
 // This method is kind of cludgy for making dynamic strings
 // Does not cut whitespace
 char* getln(FILE *file) {
   char *line = NULL, tmp[MSG_LEN];
-  size_t size = 0, index = 0;
+  size_t index = 0;
   int ch = EOF;
 
   while (ch) {

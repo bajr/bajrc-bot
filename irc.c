@@ -6,9 +6,9 @@
 #include <unistd.h>
 
 static int irc_parse_action(irc_t *irc);
-static int irc_leave_channel(irc_t *irc, char* channel);
 static int irc_log_message(irc_t *irc, char* channel, char *nick, char* msg);
-static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl, char* msg, int msgl);
+static int irc_reply_message(irc_t *irc, char* chan, int chanl, char *nick, int nickl, char* msg, int msgl);
+static chan* irc_del_chan (chan *head, char *name);
 static int irc_pong(int s, const char *data);
 static int irc_reg(int s, const char *nick, const char *username, const char *fullname);
 static int irc_nick(int s, const char *data);
@@ -25,10 +25,6 @@ int irc_connect(irc_t *irc, const char* server, const char* port) {
 
 int irc_login(irc_t *irc, const char* nick) {
    return irc_reg(irc->s, nick, "bajr", "bajrbajr");
-}
-
-int irc_join_channel(irc_t *irc, char* channel) {
-   return irc_join(irc->s, channel);
 }
 
 int irc_handle_data(irc_t *irc) {
@@ -71,10 +67,6 @@ int irc_set_output(irc_t *irc, const char* file) {
 void irc_close(irc_t *irc) {
    close(irc->s);
    fclose(irc->file);
-}
-
-static int irc_leave_channel(irc_t *irc, char* channel) {
-   return irc_part(irc->s, channel);
 }
 
 static int irc_parse_action(irc_t *irc) {
@@ -135,7 +127,7 @@ static int irc_parse_action(irc_t *irc) {
 
         if ( nicklen > 0 && msglen > 0 ) {
           irc_log_message(irc, chan, nick, msg);
-          if ( irc_reply_message(irc->s, chan, chanlen, nick, nicklen, msg, msglen) < 0 )
+          if ( irc_reply_message(irc, chan, chanlen, nick, nicklen, msg, msglen) < 0 )
             ret = -1;
         }
       }
@@ -150,7 +142,7 @@ static int irc_parse_action(irc_t *irc) {
   return ret;
 }
 
-static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl, char *msg, int msgl) {
+static int irc_reply_message(irc_t *irc, char* chan, int chanl, char *nick, int nickl, char *msg, int msgl) {
   // Checks if someone calls on the bot.
   char *ptr = NULL, *command = NULL, *arg = NULL;
   int argl = 0, ret = 0;
@@ -187,22 +179,22 @@ static int irc_reply_message(int s, char* chan, int chanl, char *nick, int nickl
     return 0;
 
   if (strncmp(command, "help", strlen("help")) == 0) {
-    ret = cmd_help(s, chan, chanl, nick, nickl, arg, argl);
+    ret = cmd_help(irc->s, chan, chanl, nick, nickl, arg, argl);
   }
   else if ( strncmp(command, "ping", strlen("ping")) == 0) {
-    ret = cmd_ping(s, chan, chanl, nick, nickl);
+    ret = cmd_ping(irc->s, chan, chanl, nick, nickl);
   }
   else if ( strncmp(command, "roll", strlen("roll")) == 0 ) {
-    ret = cmd_roll(s, chan, chanl, nick, nickl, arg, argl);
+    ret = cmd_roll(irc->s, chan, chanl, nick, nickl, arg, argl);
   }
   else if ( strncmp(command, "join", strlen("join")) == 0 ) {
-    ret = cmd_join(s, chan, chanl, nick, nickl, arg, argl);
+    ret = cmd_join(irc, chan, chanl, nick, nickl, arg, argl);
   }
   else if ( strncmp(command, "part", strlen("part")) == 0 ) {
-    ret = cmd_part(s, chan, chanl, nick, nickl, arg, argl);
+    ret = cmd_part(irc, chan, chanl, nick, nickl, arg, argl);
   }
   else if ( strncmp(command, "quit", strlen("quit")) == 0 ) {
-    ret = cmd_quit(s, chan, chanl, nick, nickl);
+    ret = cmd_quit(irc, chan, chanl, nick, nickl);
   }
   
   if ( command != NULL)
@@ -238,17 +230,55 @@ static int irc_reg(int s, const char *nick, const char *username, const char *fu
 }
 
 // irc_join: For joining a channel
-int irc_join(int s, char *data) {
-  int ret = sck_sendf(s, "JOIN %s\r\n", data);
+int irc_join(irc_t *irc, char *data) {
+  chan *link = NULL;
+  int ret = sck_sendf(irc->s, "JOIN %s\r\n", data);
+
+  if ( ret > 0) {
+    link = irc->chanlist;
+    irc->chanlist = malloc (sizeof(chan));
+    irc->chanlist->name = data;
+    irc->chanlist->next = link;
+  }
 
   return ret;
 }
 
 // irc_part: For leaving a channel
-int irc_part(int s, char *data) {
-  int ret = sck_sendf(s, "PART %s\r\n", data);
+int irc_part(irc_t *irc, char *data) {
+  irc->chanlist = irc_del_chan(irc->chanlist, data);
+  int ret = sck_sendf(irc->s, "PART %s\r\n", data);
 
   return ret;
+}
+
+static chan* irc_del_chan (chan *head, char *name) {
+  // Check if the current item is NULL, only applies to first element in list.
+  if (head == NULL)
+    return NULL;
+  // Check if the current item matches search, delete it and return the new first element
+  if (head->name != NULL && strcmp(head->name, name) == 0) {
+    chan *link = head->next;
+    if (head->name != NULL)
+      free(head->name);
+    free(head);
+    head = NULL;
+    return link;
+  }
+  // Check if the next item is NULL.
+  if (head->next == NULL)
+    return NULL;
+  // Check if the next item matches search, delete it and patch list.
+  if (head->next->name != NULL && strcmp(head->next->name, name) == 0) {
+    chan *link = head->next->next;
+    if (head->next->name != NULL)
+      free(head->next->name);
+    free(head->next);
+    head->next = link;
+    return head;
+  }
+
+  return irc_del_chan (head->next, name);
 }
 
 // irc_nick: For changing your nick

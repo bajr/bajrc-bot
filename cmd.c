@@ -6,8 +6,10 @@
 #include <unistd.h>
 #include <stdarg.h>
 
-static int parse_roll ( char *arg, char numstr[], char sidestr[], char oper, char modstr[]);
-static void roll_bajr (int s, char *arg, char *chan, char *nick, int num);
+static int parse_roll ( char *arg, char numstr[], char sidestr[], char *oper, char modstr[]);
+static void roll_bajr (int s, char *chan, char *nick, int num);
+static void roll_fudge (int s, char *chan, char *nick, int num);
+static int roll_dice (int s, char *chan, char *nick, int num, int sides, char oper, char *modstr);
 static char* find_rts ( char *chan, char *nick);
 static int make_msg ( char **msg, char tmpmsg[], const char *format, ...);
 
@@ -61,12 +63,12 @@ int cmd_roll(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int
   char *msg = NULL;
   char oper = 0;
   unsigned int num = 0, sides = 0;
-  int i = 1, rnd = 0, mod = 0, low = 0, high = 0, sum = 0, ret = 0;
+  int ret = 0;
 
 
   // Parse Roll: ptr1, ptr2, arg, numstr, sidestr, oper, modstr, i
   if ( arg != NULL) {
-    parse_roll (arg, numstr, sidestr, oper, modstr);
+    parse_roll (arg, numstr, sidestr, &oper, modstr);
   }
   else {
     return 0;
@@ -93,6 +95,7 @@ int cmd_roll(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int
     sides = 3;
   else if ( strlen(sidestr) > 8) {
     make_msg(&msg, tmpmsg, "I don't have that kind of die.");
+    irc_msg(s, find_rts(chan, nick), msg);
     sides = 0;
   }
   else
@@ -101,94 +104,45 @@ int cmd_roll(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int
   // Are we rolling bad dice?
   if (num == 0 || sides == 0) {
     make_msg(&msg, tmpmsg, "%s: %s is not a valid roll.", nick, arg);
+    irc_msg(s, find_rts(chan, nick), msg);
   }
   // Are we rolling bajrs? : tmpmsg?
   else if (strcmp(sidestr, "bajr") == 0) {
-    roll_bajr (s, arg, chan, nick, num);
+    roll_bajr (s, chan, nick, num);
   }
-  // Are these Fudge dice?
+  // Are these Fudge dice? : s, num, chan, nick
   else if ( strcmp(sidestr, "F") == 0 || strcmp(sidestr, "f") == 0) {
-    i = num;
-    sides = 3;
-    while (i > 0) {
-      rnd = rand() % sides - 1;
-      sum += rnd;
-      --i;
-    }
-    make_msg(&msg, tmpmsg, "%s: %ddF = %d", nick, num, sum);
+    roll_fudge(s, chan, nick, num);
   }
   // Everything checks out. Let's roll
   else if (num > 0 && sides > 0){
-    srand(time(NULL));
-    i = num;
-    low = sides + 1;
-    while (i > 0) {
-      rnd = rand() % sides + 1;
-      if (rnd > high)
-        high = rnd;
-      if (rnd < low)
-        low = rnd;
-      sum += rnd;
-      --i;
-    }
-
-    // Find mod (1d6 == 1d6+0)
-    if ( strcmp(modstr, "") == 0) {
-      oper = 0;
-      mod = 0;
-    }
-    else if ( strcmp(modstr, "L") == 0) {
-      mod = low;
-    }
-    else if ( strcmp(modstr, "H") == 0) {
-      mod = high;
-    }
-    else {
-      sscanf(modstr, "%d", &mod);
-    }
-
-    switch (oper) {
-      case '+': sum += mod; break;
-      case '-': sum -= mod; break;
-      case '*': case 'x': sum *= mod; break;
-      case '/': sum /= mod; break;
-      case 0: default: break;
-    }
-
-
-    if ( oper )
-      make_msg(&msg, tmpmsg, "%s: %dd%d%c%d = %d", nick, num, sides, oper, mod, sum);
-    else
-      make_msg(&msg, tmpmsg, "%s: %dd%d = %d", nick, num, sides, sum);
+    ret = roll_dice(s, chan, nick, num, sides, oper, modstr);
   }
-  else
+  else {
     make_msg(&msg, tmpmsg, "%s: %s is not a valid roll.", nick, arg);
+    ret = irc_msg(s, find_rts(chan, nick), msg);
+  }
 
-  msg = malloc(strlen(tmpmsg)+1);
-  strcpy(msg, tmpmsg);
 
-  if ( irc_msg(s, find_rts(chan, nick), msg) < 0 )
-    ret = -1;
-  else
-    ret = 0;
-
-  if (msg != NULL)
+  if (msg != NULL) {
     free(msg);
+    msg = NULL;
+  }
   return ret;
 }
 
 /******************************************************************************/
 
-int cmd_join(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int argl) {
+int cmd_join(irc_t *irc, char *chan, int chanl, char *nick, int nickl, char *arg, int argl) {
   char *ptr = NULL, * newchan = NULL, * newchankey = NULL;
   int ret = 0;
 
   if ( strcmp(nick, OWNER) != 0) {
-    return irc_msg(s, find_rts(chan, nick), "You're not the boss of me!");
+    return irc_msg(irc->s, find_rts(chan, nick), "No.");
   }
 
   if ( arg == NULL) {
-    ret = irc_msg(s, chan, "Please specify a channel.");
+    ret = irc_msg(irc->s, chan, "Please specify a channel.");
   }
   else {
     ptr = strtok(arg, " ");
@@ -202,16 +156,15 @@ int cmd_join(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int
     }
 
     if ( newchan[0] != '#' ) {
-      return irc_msg(s, chan, "That's not a channel");
+      return irc_msg(irc->s, chan, "That's not a channel");
     }
 
-    if ( irc_join(s, newchan) < 0)
-      ret = -1;
+    if ( newchan != NULL) {
+      ret = irc_join(irc, newchan);
+    }
     else
       ret = 0;
 
-    if ( newchan != NULL)
-      free(newchan);
     if (newchankey != NULL)
       free(newchankey);
   }
@@ -220,13 +173,56 @@ int cmd_join(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int
 
 /******************************************************************************/
 
-int cmd_part(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int argl) {
+int cmd_part(irc_t *irc, char *chan, int chanl, char *nick, int nickl, char *arg, int argl) {
+  char *ptr = NULL, * partchan = NULL;
+  int len = 0, ret = 0;
 
+  if ( strcmp(nick, OWNER) != 0) {
+    return irc_msg(irc->s, find_rts(chan, nick), "No.");
+  }
+
+  if ( arg == NULL) {
+    partchan = malloc (chanl+1);
+    strncpy(partchan, chan, chanl);
+    partchan[chanl] = '\0';
+  }
+  else {
+    ptr = strtok(arg, " ");
+    if (ptr == NULL) {
+      partchan = malloc (chanl+1);
+      strncpy(partchan, chan, chanl);
+      partchan[chanl] = '\0';
+    }
+    else {
+      len = strlen(ptr);
+      partchan = malloc(len+1);
+      strncpy(partchan, ptr, len);
+      partchan[len] = '\0';
+    }
+
+    if ( partchan[0] != '#' ) {
+      ret = irc_msg(irc->s, chan, "That's not a channel");
+
+      if ( partchan != NULL)
+        free(partchan);
+      return ret;
+    }
+  }
+
+  if ( irc_part(irc, partchan) < 0)
+    ret = -1;
+  else
+    ret = 0;
+
+  if ( partchan != NULL)
+    free(partchan);
+
+  return ret;
 }
 
 /******************************************************************************/
 
-int cmd_quit(int s, char *chan, int chanl, char *nick, int nickl) {
+int cmd_quit(irc_t *irc, char *chan, int chanl, char *nick, int nickl) {
 
 }
 
@@ -247,6 +243,7 @@ char * find_rts (char *chan, char *nick) {
 
 /******************************************************************************/
 
+// Prepare an IRC message. Contains a malloc. Free in calling function
 static int make_msg ( char **msg, char tmpmsg[], const char *format, ...) {
   int write_len = 0;
   va_list args;
@@ -266,7 +263,7 @@ static int make_msg ( char **msg, char tmpmsg[], const char *format, ...) {
 /******************************************************************************/
 
 // Parse Roll: arg, numstr, sidestr, oper, modstr
-static int parse_roll (char *arg, char numstr[], char sidestr[], char oper, char modstr[]) {
+static int parse_roll (char *arg, char numstr[], char sidestr[], char *oper, char modstr[]) {
   char *ptr1 = 0, *ptr2 = 0;
   int i = 1, ret = 0;
 
@@ -292,7 +289,7 @@ static int parse_roll (char *arg, char numstr[], char sidestr[], char oper, char
       while ( (ptr2-i) != ptr1 && *(ptr2 - i) == ' ' ) // Cut trailing whitespace
         ++i;
       strncpy(sidestr, ptr1+1, ptr2 - i - ptr1);
-      oper = *ptr2;
+      *oper = *ptr2;
       i = 1;
       while ( *(ptr2 + i) == ' ') // Cut leading whitespace
         ++i;
@@ -305,9 +302,10 @@ static int parse_roll (char *arg, char numstr[], char sidestr[], char oper, char
 
 /******************************************************************************/
 
-static void roll_bajr (int s, char *arg, char *chan, char *nick, int num) {
-  char tmpmsg[MSG_LEN] = {0}, tmpbajr[256] = {0};
+static void roll_bajr (int s, char *chan, char *nick, int num) {
+  char tmpmsg[MSG_LEN] = {0}, tmpbajr[257] = {0};
   char *msg = 0;
+  int i;
 
   if ( num > 64) {
     make_msg(&msg, tmpmsg, "%s: I only have 64 bajrs...", nick);
@@ -318,17 +316,18 @@ static void roll_bajr (int s, char *arg, char *chan, char *nick, int num) {
       msg = NULL;
     }
 
-    tmpmsg[0] = '\0';
+    for ( i = 0; tmpmsg[i] != '\0' && i < MSG_LEN; ++i )
+      tmpmsg[i] = '\0';
     num = 64;
   }
 
-  while (num > 0) {
+  i = 0;
+  while (i < num) {
     strcat(tmpbajr, "bajr");
-    --num;
+    ++i;
   }
 
-  make_msg(&msg, tmpmsg, "%s: %s = %s", nick, arg, tmpbajr);
-
+  make_msg(&msg, tmpmsg, "%s: %ddbajr = %s", nick, num, tmpbajr);
   irc_msg(s, find_rts(chan, nick), msg);
 
   if (msg != NULL) {
@@ -336,3 +335,84 @@ static void roll_bajr (int s, char *arg, char *chan, char *nick, int num) {
     msg = NULL;
   }
 }
+
+/******************************************************************************/
+
+// Fudge dice.
+static void roll_fudge (int s, char *chan, char *nick, int num) {
+  int i = num, sum = 0, rnd = 0, sides = 3;
+  char tmpmsg[MSG_LEN] = {0}, *msg = 0;
+
+  while (i > 0) {
+    rnd = rand() % sides - 1;
+    sum += rnd;
+    --i;
+  }
+
+  make_msg(&msg, tmpmsg, "%s: %ddF = %d", nick, num, sum);
+  irc_msg(s, find_rts(chan, nick), msg);
+
+  if (msg != NULL) {
+    free(msg);
+    msg = NULL;
+  }
+}
+
+
+static int roll_dice (int s, char *chan, char *nick, int num, int sides, char oper, char *modstr) {
+  int i = num, low = sides, high = 0, rnd = 0, sum = 0, mod = 0, ret = 0;
+  char tmpmsg[MSG_LEN] = {0}, *msg = 0;
+
+  srand(time(NULL));
+
+  while (i > 0) {
+    rnd = rand() % sides + 1;
+    if (rnd > high)
+      high = rnd;
+    if (rnd < low)
+      low = rnd;
+    sum += rnd;
+    --i;
+  }
+
+  // Find mod (1d6 == 1d6+0)
+  if ( strcmp(modstr, "") == 0) {
+    oper = 0;
+    mod = 0;
+  }
+  else if ( strcmp(modstr, "L") == 0) {
+    mod = low;
+  }
+  else if ( strcmp(modstr, "H") == 0) {
+    mod = high;
+  }
+  else {
+    sscanf(modstr, "%d", &mod);
+  }
+
+  switch (oper) {
+    case '+': sum += mod; break;
+    case '-': sum -= mod; break;
+    case '*': case 'x': sum *= mod; break;
+    case '/': sum /= mod; break;
+    case 0: default: break;
+  }
+
+
+  if ( oper ) {
+    make_msg(&msg, tmpmsg, "%s: %dd%d%c%d = %d", nick, num, sides, oper, mod, sum);
+    ret = irc_msg(s, find_rts(chan, nick), msg);
+  }
+  else {
+    make_msg(&msg, tmpmsg, "%s: %dd%d = %d", nick, num, sides, sum);
+    ret = irc_msg(s, find_rts(chan, nick), msg);
+  }
+
+  if (msg != NULL) {
+    free(msg);
+    msg = NULL;
+  }
+
+  return ret;
+}
+

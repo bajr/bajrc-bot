@@ -3,6 +3,9 @@
 
 #include <stdlib.h>
 
+#define NICK_LEN 32
+#define CHAN_LEN 256
+#define MSG_LEN 512
 #define IRC_PORT "6667"
 #define IRC_SSL_PORT "6697"
 

@@ -3,9 +3,6 @@
 
 #include <stdio.h>
 
-#define NICK_LEN 32
-#define CHAN_LEN 256
-#define MSG_LEN 512
 #define BOTNAME "bajrbot"
 #define OWNER "bajr"
 
@@ -25,13 +22,12 @@ typedef struct {
 
 int irc_connect(irc_t *irc, const char* server, const char* port);
 int irc_login(irc_t *irc, const char* nick);
-int irc_join_channel(irc_t *irc, char* channel);
 int irc_handle_data(irc_t *irc);
 int irc_set_output(irc_t *irc, const char* file);
 void irc_close(irc_t *irc);
 
-int irc_join(int s, char *data);
-int irc_part(int s, char *data);
+int irc_join(irc_t *irc, char *data);
+int irc_part(irc_t *irc, char *data);
 int irc_msg(int s, char *channel, char *data);
 int irc_quit(int s, char *data);
 

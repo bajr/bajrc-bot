@@ -223,7 +223,12 @@ int cmd_part(irc_t *irc, char *chan, int chanl, char *nick, int nickl, char *arg
 /******************************************************************************/
 
 int cmd_quit(irc_t *irc, char *chan, int chanl, char *nick, int nickl) {
+  while (irc->chanlist != NULL)
+    irc_part(irc, irc->chanlist->name);
 
+  irc_quit(irc->s, "Keep rolling");
+
+  return -1;
 }
 
 /******************************************************************************/
@@ -243,7 +248,7 @@ char * find_rts (char *chan, char *nick) {
 
 /******************************************************************************/
 
-// Prepare an IRC message. Contains a malloc. Free in calling function
+// Prepare an IRC message. Contains a malloc to be free'd in calling function
 static int make_msg ( char **msg, char tmpmsg[], const char *format, ...) {
   int write_len = 0;
   va_list args;
@@ -302,6 +307,7 @@ static int parse_roll (char *arg, char numstr[], char sidestr[], char *oper, cha
 
 /******************************************************************************/
 
+// Roll bajrs
 static void roll_bajr (int s, char *chan, char *nick, int num) {
   char tmpmsg[MSG_LEN] = {0}, tmpbajr[257] = {0};
   char *msg = 0;
@@ -358,7 +364,9 @@ static void roll_fudge (int s, char *chan, char *nick, int num) {
   }
 }
 
+/******************************************************************************/
 
+// Roll dice.
 static int roll_dice (int s, char *chan, char *nick, int num, int sides, char oper, char *modstr) {
   int i = num, low = sides, high = 0, rnd = 0, sum = 0, mod = 0, ret = 0;
   char tmpmsg[MSG_LEN] = {0}, *msg = 0;

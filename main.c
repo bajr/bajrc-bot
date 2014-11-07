@@ -75,8 +75,10 @@ void init_conf (irc_t * irc, FILE * conf) {
         }
       }
     }
-    else if (state == 1 && tok != NULL && ch == '#') {
-      irc_join(irc, tok);
+    else if (state == 1 && ch == '#') {
+      char *chan = malloc(strlen(tok)+1);
+      strcpy(chan, tok);
+      irc_join(irc, chan);
     }
 
     if (line != NULL) {

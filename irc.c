@@ -116,6 +116,7 @@ static int irc_parse_action(irc_t *irc) {
         chan = malloc(chanlen + 1);
         strncpy(chan, ptr, chanlen + 1);
         chan[chanlen] = 0;
+
         if ( (ptr = strtok(NULL, "")) != NULL ) {
           if (ptr[0] == ':')
             ++ptr;
@@ -127,11 +128,11 @@ static int irc_parse_action(irc_t *irc) {
 
         if ( nicklen > 0 && msglen > 0 ) {
           irc_log_message(irc, chan, nick, msg);
-          if ( irc_reply_message(irc, chan, chanlen, nick, nicklen, msg, msglen) < 0 )
-            ret = -1;
+          ret = irc_reply_message(irc, chan, chanlen, nick, nicklen, msg, msglen);
         }
       }
     }
+
     if ( chan != NULL)
       free(chan);
     if ( nick != NULL)
@@ -139,6 +140,7 @@ static int irc_parse_action(irc_t *irc) {
     if ( msg != NULL)
       free(msg);
   }
+
   return ret;
 }
 
@@ -246,8 +248,8 @@ int irc_join(irc_t *irc, char *data) {
 
 // irc_part: For leaving a channel
 int irc_part(irc_t *irc, char *data) {
-  irc->chanlist = irc_del_chan(irc->chanlist, data);
   int ret = sck_sendf(irc->s, "PART %s\r\n", data);
+  irc->chanlist = irc_del_chan(irc->chanlist, data);
 
   return ret;
 }
@@ -289,7 +291,7 @@ static int irc_nick(int s, const char *data) {
 
 // irc_quit: For quitting IRC
 int irc_quit(int s, char *data) {
-   return sck_sendf(s, "QUIT :%s\r\n", data);
+   return sck_sendf(s, "QUIT %s\r\n", data);
 }
 
 // irc_topic: For setting or removing a topic

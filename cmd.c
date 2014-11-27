@@ -16,6 +16,8 @@ static int roll_dice (int s, char *chan, char *nick, unsigned long num[], unsign
 static char* find_rts ( char *chan, char *nick);
 static int make_msg ( char **msg, char tmpmsg[], const char *format, ...);
 static char * trimStr (char *str, int strl);
+static int find_highsum(long unsigned rolls[], int rolls_len, int num);
+static int find_lowsum(long unsigned rolls[], int rolls_len, int num);
 
 /******************************************************************************/
 
@@ -269,12 +271,18 @@ static int parse_roll (char *arg, unsigned long num[], unsigned long sides[], ch
     ptr = strstr(toks[i], "d");
 
     if ( ptr == NULL ) { // d not found, use as mod of previous roll
-      if ( j != 0)
-        --j;
-      ptr = strtok(toks[i], opers);
-      ptr = trimStr(toks[i], strlen(toks[i]));
-      modstr[j] = malloc(strlen(ptr) + 1);
-      strncpy(modstr[j], ptr, strlen(ptr)+1);
+        if ( j != 0)
+          --j;
+      if ( num[j] != 0 && sides[j] != 0 && modstr[j] == NULL) {
+        ptr = strtok(toks[i], opers);
+        ptr = trimStr(ptr, strlen(ptr));
+        modstr[j] = malloc(strlen(ptr) + 1);
+        strncpy(modstr[j], ptr, strlen(ptr)+1);
+      }
+      else {
+        ret = -1;
+        break;
+      }
     }
     // d found, parse as dice roll
     else {
@@ -469,15 +477,15 @@ static int roll_dice (int s, char *chan, char *nick, unsigned long num[], unsign
     }
 
     // Find mod (1d6 == 1d6+0)
-    if ( modstr[i] != 0 ) {
+    if ( modstr[i] != NULL ) {
       mod = strtoul(modstr[i], &endptr, 10);
 
       if ( *endptr != 0 && mod > 0 && mod < num[i] ) {
         if ( toupper(*endptr) == 'H' ) {
-          // modsum = find_highsum(rolls, j, mod);
+          modsum = find_highsum(rolls, j, mod);
         }
         else if ( toupper(*endptr) == 'L' ) {
-          // modsum = find_lowsum(rolls, j, mod);
+          modsum = find_lowsum(rolls, j, mod);
         }
       }
       else if ( mod > 0 && mod < USHRT_MAX ) {
@@ -553,8 +561,9 @@ static int roll_dice (int s, char *chan, char *nick, unsigned long num[], unsign
     //ret = irc_msg(s, find_rta(chan, nick), msg);
   }
 
-  for ( i = 0; modstr[i] != NULL && i < 64; ++i ) {
-    free(modstr[i]);
+  for ( i = 0; i < 64; ++i ) {
+    if ( modstr[i] != NULL )
+      free(modstr[i]);
     modstr[i] = 0;
   }
 
@@ -568,15 +577,26 @@ static int roll_dice (int s, char *chan, char *nick, unsigned long num[], unsign
 
 /******************************************************************************/
 
-static int find_highsum(int rolls[], int rolls_len, int num) {
-  int i = 0, k = 0, n = 0, sum = 0;
+static int find_highsum(long unsigned rolls[], int rolls_len, int num) {
+  int i = 0, k = 0, index = 0, n = 0, sum = 0;
   int high[num];
 
   for ( i = 0; i < rolls_len; ++i ) {
     n = rolls[i];
     for ( k = 0; k < num; ++k ) {
+      if ( high[k] == 0 || n > high[k] ) {
+        index = k;
+        break;
+      }
     }
+    if ( index >= 0 && index < num ) {
+      high[index] = n;
+      index = -1;
+    }
+  }
 
+  for ( i = 0; i < num; ++i ) {
+    sum += high[i];
   }
 
   return sum;
@@ -584,7 +604,29 @@ static int find_highsum(int rolls[], int rolls_len, int num) {
 
 /******************************************************************************/
 
-static int find_lowsum(int rolls[], int rolls_len, int num) {
+static int find_lowsum(long unsigned rolls[], int rolls_len, int num) {
+  int i = 0, k = 0, index = 0, n = 0, sum = 0;
+  int low[num];
+
+  for ( i = 0; i < rolls_len; ++i ) {
+    n = rolls[i];
+    for ( k = 0; k < num; ++k ) {
+      if ( low[k] == 0 || n < low[k] ) {
+        index = k;
+        break;
+      }
+    }
+    if ( index >= 0 && index < num ) {
+      low[index] = n;
+      index = -1;
+    }
+  }
+
+  for ( i = 0; i < num; ++i ) {
+    sum += low[i];
+  }
+
+  return sum;
 }
 
 /******************************************************************************/

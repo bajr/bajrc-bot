@@ -99,6 +99,7 @@ int sck_recv(int s, char* buffer, size_t size) {
       case ENOMEM: fprintf(stderr, "ENOMEM"); break;
       case ENOTCONN: fprintf(stderr, "ENOTCONN"); break;
       case ENOTSOCK: fprintf(stderr,"ENOTSOCK"); break;
+      default: fprintf(stderr, "Unknown Error: %d", errsv);
     }
   }
   return rc;

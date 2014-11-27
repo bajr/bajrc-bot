@@ -5,13 +5,17 @@
 #include <time.h>
 #include <unistd.h>
 #include <stdarg.h>
+#include <regex.h>
+#include <limits.h>
+#include <ctype.h>
 
-static int parse_roll ( char *arg, char numstr[], char sidestr[], char *oper, char modstr[]);
+static int parse_roll (char *arg, unsigned long num[], unsigned long sides[], char oper[], char *modstr[], int * numsum);
 static void roll_bajr (int s, char *chan, char *nick, int num);
 static void roll_fudge (int s, char *chan, char *nick, int num);
-static int roll_dice (int s, char *chan, char *nick, int num, int sides, char oper, char *modstr);
+static int roll_dice (int s, char *chan, char *nick, unsigned long num[], unsigned long sides[], char oper[], char *modstr[], int numsum);
 static char* find_rts ( char *chan, char *nick);
 static int make_msg ( char **msg, char tmpmsg[], const char *format, ...);
+static char * trimStr (char *str, int strl);
 
 /******************************************************************************/
 
@@ -59,75 +63,43 @@ int cmd_ping(int s, char *chan, int chanl, char *nick, int nickl) {
 /******************************************************************************/
 
 int cmd_roll(int s, char *chan, int chanl, char *nick, int nickl, char *arg, int argl) {
-  char tmpmsg[MSG_LEN] = {0}, numstr[NICK_LEN] = {0}, sidestr[NICK_LEN] = {0}, modstr[NICK_LEN] = {0};
+  char tmpmsg[MSG_LEN] = {0};
+  char oper[64] = {0}, *modstr[64] = {0};
   char *msg = NULL;
-  char oper = 0;
-  unsigned int num = 0, sides = 0;
-  int ret = 0;
+  int ret = 0, i = 0, n = 0, numsum = 0;
+  unsigned long num[64] = {0}, sides[64] = {0};
 
-
-  // Parse Roll: ptr1, ptr2, arg, numstr, sidestr, oper, modstr, i
-  if ( arg != NULL) {
-    parse_roll (arg, numstr, sidestr, &oper, modstr);
-  }
-  else {
-    return 0;
-  }
-
-  // Find num (d6 == 1d6)
-  if ( strcmp(numstr, "") == 0)
-    num = 1;
-  else if ( strlen(numstr) > 8) {
-    make_msg(&msg, tmpmsg, "I don't have %s dice!", numstr);
-    num = 0;
-  }
+  // Parse arg and extract meaningful output
+  if ( arg != NULL)
+    n = parse_roll (arg, num, sides, oper, modstr, &numsum);
   else
-    sscanf(numstr, "%d", &num);
+    return 0; // Nothing to roll
 
-  // Find sides (1d == 1d6)
-  if ( strcmp(sidestr, "") == 0)
-    sides = 6;
-  else if ( strcmp(sidestr, "%") == 0)
-    sides = 100;
-  else if ( strcmp(sidestr, "bajr") == 0)
-    sides = 1;
-  else if ( strcmp(sidestr, "F") == 0 || strcmp(sidestr, "f") == 0)
-    sides = 3;
-  else if ( strlen(sidestr) > 8) {
-    make_msg(&msg, tmpmsg, "I don't have that kind of die.");
-    irc_msg(s, find_rts(chan, nick), msg);
-    sides = 0;
-  }
-  else
-    sscanf(sidestr, "%d", &sides);
-
-  // Are we rolling bad dice?
-  if (num == 0 || sides == 0) {
-    make_msg(&msg, tmpmsg, "%s: %s is not a valid roll.", nick, arg);
-    irc_msg(s, find_rts(chan, nick), msg);
-  }
-  // Are we rolling bajrs? : tmpmsg?
-  else if (strcmp(sidestr, "bajr") == 0) {
-    roll_bajr (s, chan, nick, num);
-  }
-  // Are these Fudge dice? : s, num, chan, nick
-  else if ( strcmp(sidestr, "F") == 0 || strcmp(sidestr, "f") == 0) {
-    roll_fudge(s, chan, nick, num);
-  }
-  // Everything checks out. Let's roll
-  else if (num > 0 && sides > 0){
-    ret = roll_dice(s, chan, nick, num, sides, oper, modstr);
-  }
-  else {
-    make_msg(&msg, tmpmsg, "%s: %s is not a valid roll.", nick, arg);
-    ret = irc_msg(s, find_rts(chan, nick), msg);
+  for ( i = 0; oper[i] != 0 && i < 64; ++i ) {
+    fprintf(stderr, "\tRoll: _%lud%lu_%c_%s_\n", num[i], sides[i], oper[i], modstr[i]);
   }
 
+  // INVALID ROLL
+  switch (n) {
+    case 0:
+      roll_dice(s, chan, nick, num, sides, oper, modstr, numsum);
+      break;
+    case 1:
+      roll_bajr(s, chan, nick, num[0]);
+      break;
+    case 2:
+      roll_fudge(s, chan, nick, num[0]);
+      break;
+    case -1: default:
+      make_msg(&msg, tmpmsg, "%s: %s is not a valid roll.", nick, arg);
+      ret = irc_msg(s, find_rts(chan, nick), msg);
+  }
 
   if (msg != NULL) {
     free(msg);
     msg = NULL;
   }
+
   return ret;
 }
 
@@ -223,6 +195,10 @@ int cmd_part(irc_t *irc, char *chan, int chanl, char *nick, int nickl, char *arg
 /******************************************************************************/
 
 int cmd_quit(irc_t *irc, char *chan, int chanl, char *nick, int nickl) {
+  if ( strcmp(nick, OWNER) != 0) {
+    return irc_msg(irc->s, find_rts(chan, nick), "No.");
+  }
+
   while (irc->chanlist != NULL)
     irc_part(irc, irc->chanlist->name);
 
@@ -253,7 +229,7 @@ static int make_msg ( char **msg, char tmpmsg[], const char *format, ...) {
   int write_len = 0;
   va_list args;
 
-  if (strlen(format) != 0) {
+  if ( format != NULL && strlen(format) != 0) {
     va_start(args, format);
     write_len = vsnprintf(tmpmsg, MSG_LEN, format, args);
     va_end(args);
@@ -267,42 +243,130 @@ static int make_msg ( char **msg, char tmpmsg[], const char *format, ...) {
 
 /******************************************************************************/
 
-// Parse Roll: arg, numstr, sidestr, oper, modstr
-static int parse_roll (char *arg, char numstr[], char sidestr[], char *oper, char modstr[]) {
-  char *ptr1 = 0, *ptr2 = 0;
-  int i = 1, ret = 0;
+// Parse Roll: Return value is number of tokens made
+static int parse_roll (char *arg, unsigned long num[], unsigned long sides[], char oper[], char *modstr[], int * numsum) {
+  int i = 0, j = 0, ioper = 0, ret = 0;
+  char opers[] = "+-,";
+  char *tmp = strdup(arg); // tmp will be divided up into substrings and stored in toks, remember to free this memory later.
+  char *toks[64] = {0};
+  char *ptr = NULL, *endptr = NULL;
 
-  ptr1 = strpbrk(arg, "d");
-  ptr2 = strpbrk(arg, "-+*x/");
+  ptr = strtok(tmp, opers);
 
-  if (ptr1 == NULL) { // No d, invalid roll
-    strcpy(numstr, arg);
-    ret = 0;
+  while ( ptr != NULL && i < 64) {
+    toks[i] = ptr;
+    ioper += (strlen(ptr));
+    oper[i] = arg[ioper];
+    ++ioper;
+    ++i;
+    ptr = strtok(NULL, opers);
   }
-  else { // Contains d, potentially valid
-    strncpy(numstr, arg, ptr1 - arg);
-    if (ptr2 == NULL) { // Does not have a modifier, valid
-      strcpy(sidestr, ptr1 + 1);
-      ret = 1;
+
+  i = 0;
+
+  while ( toks[i] != NULL && i < 64 ) {
+    // Look for d in token. Perfectly ok if string is NULL
+    ptr = strstr(toks[i], "d");
+
+    if ( ptr == NULL ) { // d not found, use as mod of previous roll
+      if ( j != 0)
+        --j;
+      ptr = strtok(toks[i], opers);
+      ptr = trimStr(toks[i], strlen(toks[i]));
+      modstr[j] = malloc(strlen(ptr) + 1);
+      strncpy(modstr[j], ptr, strlen(ptr)+1);
     }
-    else if (ptr2 < ptr1) { // Operator found before d, invalid
-      strcpy(numstr, arg);
-      ret = 0;
+    // d found, parse as dice roll
+    else {
+      ptr = strtok(toks[i], "d");
+
+      if ( ptr == NULL || ptr > toks[i] ) {
+        num[j] = 1;
+        ++(*numsum);
+      }
+      else {
+        ptr = trimStr(ptr, strlen(ptr));
+        num[j] = strtoul(ptr, &endptr, 10);
+        *numsum += num[j];
+
+        // Error: Invalid number of rolls
+        if ( num[j] == 0 || *numsum >= USHRT_MAX ) {
+          ret = -1;
+          break;
+        }
+      }
+
+      if ( ptr == toks[i] )
+        ptr = strtok(NULL, "");
+      if ( ptr == NULL )
+        sides[j] = 6;
+      else {
+        ptr = trimStr(ptr, strlen(ptr));
+
+        if ( strcmp(ptr, "%") == 0 ) {
+          sides[j] = 100;
+        }
+        // bajrs roll alone
+        else if ( strcmp(ptr, "bajr") == 0 ) {
+          if ( i != 0 ) {
+            ret = -1;
+            break;
+          }
+          else {
+            ret = 1;
+            break;
+          }
+        }
+        // Have not yet decided if Fudge dice should be chainable
+        else if ( strcmp(ptr, "F") == 0 || strcmp(ptr, "f") == 0 ) {
+          if ( i != 0 ) {
+            ret = -1;
+            break;
+          }
+          else {
+            ret = 2;
+            break;
+          }
+        }
+        else {
+          sides[j] = strtoul(ptr, &endptr, 10);
+
+          // Error: Invalid number of sides
+          if ( sides[j] == 0 || sides[j] >= USHRT_MAX ) {
+            ret = -1;
+            break;
+          }
+        }
+      }
     }
-    else { // Operator found after d, valid
-      i = 1;
-      while ( (ptr2-i) != ptr1 && *(ptr2 - i) == ' ' ) // Cut trailing whitespace
-        ++i;
-      strncpy(sidestr, ptr1+1, ptr2 - i - ptr1);
-      *oper = *ptr2;
-      i = 1;
-      while ( *(ptr2 + i) == ' ') // Cut leading whitespace
-        ++i;
-      strcpy(modstr, ptr2 + i);
-      ret = 1;
-    }
+
+    ++i;
+    ++j;
   }
+
+  if (tmp != NULL) {
+    free(tmp);
+    tmp = NULL;
+  }
+
   return ret;
+}
+
+/******************************************************************************/
+
+// Trim leading and trailing whitespace from a string
+static char * trimStr (char *str, int strl) {
+  char * end = str + strl - 1;
+
+  // Trim whitespace
+  while ( str < end && isspace(*str) ) ++str;
+  if ( *str == 0 ) // All whitespace
+    return str;
+
+  while ( end > str && isspace(*end) ) --end;
+  *(end+1) = 0;
+
+  return str;
 }
 
 /******************************************************************************/
@@ -367,53 +431,131 @@ static void roll_fudge (int s, char *chan, char *nick, int num) {
 /******************************************************************************/
 
 // Roll dice.
-static int roll_dice (int s, char *chan, char *nick, int num, int sides, char oper, char *modstr) {
-  int i = num, low = sides, high = 0, rnd = 0, sum = 0, mod = 0, ret = 0;
-  char tmpmsg[MSG_LEN] = {0}, *msg = 0;
+static int roll_dice (int s, char *chan, char *nick, unsigned long num[], unsigned long sides[], char oper[], char *modstr[], int numsum) {
+  int i = 0, j = 0, k = 0, ioper = 0, len = 0, sum = 0, mod = 0, modsum = 0, tmp = 0, ret = 0;
+  char tmpmsg[MSG_LEN] = {0}, *msg = 0, *endptr = NULL;
+  unsigned long rolls[numsum];
 
   srand(time(NULL));
 
-  while (i > 0) {
-    rnd = rand() % sides + 1;
-    if (rnd > high)
-      high = rnd;
-    if (rnd < low)
-      low = rnd;
-    sum += rnd;
-    --i;
+  if ( numsum < 16 ) {
+    len += strlen(nick) + 2;
+    strncpy(tmpmsg, nick, len);
+    strncat(tmpmsg, ": ", 3);
   }
 
-  // Find mod (1d6 == 1d6+0)
-  if ( strcmp(modstr, "") == 0) {
-    oper = 0;
-    mod = 0;
-  }
-  else if ( strcmp(modstr, "L") == 0) {
-    mod = low;
-  }
-  else if ( strcmp(modstr, "H") == 0) {
-    mod = high;
-  }
-  else {
-    sscanf(modstr, "%d", &mod);
+  for ( i = 0; num[i] != 0 && i < 64; ++i ) {
+    // Next Operator applies to next roll...
+    if ( i != 0 && numsum < 16 ) {
+      switch (oper[ioper]) {
+       case '+':
+         len += snprintf(&tmpmsg[len], MSG_LEN - len, " + ");
+         break;
+       case '-':
+         len += snprintf(&tmpmsg[len], MSG_LEN - len, " - ");
+         break;
+       case ',':
+         len += snprintf(&tmpmsg[len], MSG_LEN - len, "; ");
+         break;
+       default:
+         break;
+      }
+      ++ioper;
+    }
+
+    for ( j = 0; j < num[i] && j < numsum; ++j ) {
+      rolls[j] = rand() % sides[i] + 1;
+      sum += rolls[j];
+    }
+
+    // Find mod (1d6 == 1d6+0)
+    if ( modstr[i] != 0 ) {
+      mod = strtoul(modstr[i], &endptr, 10);
+
+      if ( *endptr != 0 && mod > 0 && mod < num[i] ) {
+        if ( toupper(*endptr) == 'H' ) {
+          // modsum = find_highsum(rolls, j, mod);
+        }
+        else if ( toupper(*endptr) == 'L' ) {
+          // modsum = find_lowsum(rolls, j, mod);
+        }
+      }
+      else if ( mod > 0 && mod < USHRT_MAX ) {
+        modsum = mod;
+      }
+      else {
+        // bad mod
+      }
+    }
+    else {
+      // use operator on next roll
+    }
+
+    // Compose message to display dice rolls
+    if ( numsum < 16 ) {
+      ++len;
+      strncat(tmpmsg, "(", 2);
+      for ( k = 0; k < j; ++k ) {
+        if ( k != 0 ) {
+          ++len;
+          strncat(tmpmsg, ",", 2);
+        }
+        len += snprintf(&tmpmsg[len], MSG_LEN - len, "%lu", rolls[k]);
+      }
+      ++len;
+      strncat(tmpmsg, ")", 2);
+
+      if ( modstr[i] != NULL ) {
+        // Apply mod to previous roll
+        switch (oper[ioper]) {
+          case '+':
+            if ( toupper(*endptr) == 'H' || toupper(*endptr) == 'L' )
+              len += snprintf(&tmpmsg[len], MSG_LEN - len, "+%d%c ", mod, *endptr);
+            else
+              len += snprintf(&tmpmsg[len], MSG_LEN - len, "+%d ", mod);
+            break;
+          case '-':
+            if ( toupper(*endptr) == 'H' || toupper(*endptr) == 'L' )
+              len += snprintf(&tmpmsg[len], MSG_LEN - len, "-%d%c ", mod, *endptr);
+            else
+              len += snprintf(&tmpmsg[len], MSG_LEN - len, "-%d ", mod);
+            break;
+          case ',':
+            len += snprintf(&tmpmsg[len], MSG_LEN - len, "; ");
+            break;
+          default:
+            break;
+        }
+        ++ioper;
+      }
+    }
+
+    switch (oper[ioper]) {
+      case '+':
+        sum += modsum;
+        break;
+      case '-':
+        sum -= modsum;
+        break;
+      case ',': default:
+        tmp = sum;
+        sum = 0;
+    }
   }
 
-  switch (oper) {
-    case '+': sum += mod; break;
-    case '-': sum -= mod; break;
-    case '*': case 'x': sum *= mod; break;
-    case '/': sum /= mod; break;
-    case 0: default: break;
-  }
-
-
-  if ( oper ) {
-    make_msg(&msg, tmpmsg, "%s: %dd%d%c%d = %d", nick, num, sides, oper, mod, sum);
+  // Display roll
+  if ( numsum < 16 ) {
+    make_msg(&msg, tmpmsg, NULL, NULL);
     ret = irc_msg(s, find_rts(chan, nick), msg);
   }
   else {
-    make_msg(&msg, tmpmsg, "%s: %dd%d = %d", nick, num, sides, sum);
-    ret = irc_msg(s, find_rts(chan, nick), msg);
+    //make_msg(&msg, tmpmsg, , );
+    //ret = irc_msg(s, find_rta(chan, nick), msg);
+  }
+
+  for ( i = 0; modstr[i] != NULL && i < 64; ++i ) {
+    free(modstr[i]);
+    modstr[i] = 0;
   }
 
   if (msg != NULL) {
@@ -424,3 +566,25 @@ static int roll_dice (int s, char *chan, char *nick, int num, int sides, char op
   return ret;
 }
 
+/******************************************************************************/
+
+static int find_highsum(int rolls[], int rolls_len, int num) {
+  int i = 0, k = 0, n = 0, sum = 0;
+  int high[num];
+
+  for ( i = 0; i < rolls_len; ++i ) {
+    n = rolls[i];
+    for ( k = 0; k < num; ++k ) {
+    }
+
+  }
+
+  return sum;
+}
+
+/******************************************************************************/
+
+static int find_lowsum(int rolls[], int rolls_len, int num) {
+}
+
+/******************************************************************************/

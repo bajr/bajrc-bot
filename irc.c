@@ -167,10 +167,6 @@ static int irc_reply_message(irc_t *irc, char* chan, int chanl, char *nick, int 
     arg = malloc(argl + 1);
     strncpy(arg, ptr, argl);
     arg[argl] = 0;
-
-    if ( argl != 0)
-      while ( *arg == ' ' )
-        arg++;
   }
   else {
     arg = NULL;
@@ -199,10 +195,14 @@ static int irc_reply_message(irc_t *irc, char* chan, int chanl, char *nick, int 
     ret = cmd_quit(irc, chan, chanl, nick, nickl);
   }
   
-  if ( command != NULL)
+  if ( command != NULL) {
     free(command);
-  if ( arg != NULL)
+    command = NULL;
+  }
+  if ( arg != NULL) {
     free(arg);
+    arg = NULL;
+  }
 
   return ret;
 }
